@@ -1,0 +1,8 @@
+import DashboardShell from '../../components/DashboardShell';
+
+const stats = [['₹', 'Platform revenue', '₹1.24M', '+18.5% this month'], ['♙', 'Total users', '45,210', '+2,018 this month'], ['▦', 'Active turfs', '842', '+42 this month'], ['◈', 'Avg. booking value', '₹1.25K', '+5.1% this month']];
+const activity = [['M', 'New Turf City Arena registered', 'A new venue is pending approval.'], ['B', 'High-value booking approved', '₹4,500 booking completed.'], ['!', 'Unresolved complaint', 'Mediated dispute requires review.'], ['✓', 'System backup completed', 'All records were safely saved.']];
+
+export default function AdminDashboard() {
+  return <DashboardShell role="admin" title="Platform Overview" subtitle="Monday, 2 September 2026"><section className="dashStats adminStats">{stats.map(([icon, label, value, change]) => <article key={label}><i>{icon}</i><span>{label}<b>{value}</b><small>{change}</small></span></article>)}</section><section className="dashGrid adminGrid"><article className="dashPanel growth"><div className="panelTitle"><h2>Platform growth</h2><button>Last 6 months⌄</button></div><div className="growthValue">45,210 <small>+18.5%</small></div><div className="barChart">{[34,48,43,70,61,86,76,95].map((height, index) => <span key={index} style={{ height: `${height}%` }} />)}</div><div className="chartMonths">Feb　 Mar　 Apr　 May　 Jun　 Jul　 Aug　 Sep</div></article><article className="dashPanel activity"><div className="panelTitle"><h2>Recent activity</h2><button>View all</button></div>{activity.map(([icon, title, description]) => <div className="activityRow" key={title}><i>{icon}</i><span><b>{title}</b><small>{description}</small></span></div>)}</article></section></DashboardShell>;
+}

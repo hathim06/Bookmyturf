@@ -1,0 +1,17 @@
+import express from 'express';
+import { blockUser, createOwner, deactivateTurf, getUserDetails, listBookings, listTurfs, listUsers, removeUser, toggleTurfListing, updateTurfStatus } from '../controllers/adminController.js';
+import { protect } from '../middlewares/authMiddleware.js';
+import { requireAdmin } from '../middlewares/roleMiddleware.js';
+const router = express.Router();
+router.use(protect, requireAdmin);
+router.post('/owners', createOwner);
+ router.get('/users', listUsers); 
+router.get('/bookings', listBookings);
+router.get('/users/:id', getUserDetails); 
+router.patch('/users/:id/block', blockUser); 
+router.delete('/users/:id', removeUser);
+router.get('/turfs', listTurfs);
+router.patch('/turfs/:id/listing', toggleTurfListing);
+router.patch('/turfs/:id/status', updateTurfStatus);
+router.delete('/turfs/:id', deactivateTurf);
+export default router;

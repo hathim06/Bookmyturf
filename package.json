@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+    "dev": "npm --prefix frontend/my-react-app run dev",
+    "build": "npm --prefix frontend/my-react-app run build",
+    "lint": "npm --prefix frontend/my-react-app run lint"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.2.2"
+  }
+}

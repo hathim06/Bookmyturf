@@ -1,0 +1,18 @@
+import express from 'express';
+import { createTurf, listTurfs, removeTurf, updateTurf, toggleTurfListing, listOwnerBookings } from '../controllers/ownerController.js';
+import { protect } from '../middlewares/authMiddleware.js';
+import { requireOwner } from '../middlewares/roleMiddleware.js';
+import upload from '../middlewares/uploadMiddleware.js';
+import { createCategory, deleteCategory, listCategories } from '../controllers/categoryController.js';
+const router = express.Router();
+router.use(protect, requireOwner);
+router.get('/turfs', listTurfs); 
+router.post('/turfs', upload.array('images', 8), createTurf); 
+router.put('/turfs/:id', upload.array('images', 8), updateTurf);
+router.patch('/turfs/:id/listing', toggleTurfListing);
+router.delete('/turfs/:id', removeTurf);
+router.get('/bookings', listOwnerBookings);
+router.get('/categories', listCategories);
+router.post('/categories', createCategory);
+router.delete('/categories/:id', deleteCategory);
+export default router;
