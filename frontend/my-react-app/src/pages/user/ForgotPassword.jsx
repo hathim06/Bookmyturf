@@ -3,8 +3,7 @@ import { useState } from 'react';
 import { validateEmail } from '../../utils/validation';
 import FormError from '../../components/FormError';
 import FieldError from '../../components/FieldError';
-
-const API_URL = 'http://localhost:5000/api/users';
+import { userService } from '../../services/userService';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -26,13 +25,7 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to send OTP.');
+      await userService.forgotPassword(email);
       navigate('/reset-password', { state: { email } });
     } catch (requestError) {
       setError(requestError.message);

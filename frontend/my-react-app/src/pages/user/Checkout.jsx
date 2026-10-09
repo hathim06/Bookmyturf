@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Page } from '../../components/Layout';
-import { getAuthToken, getAuthUser } from '../../utils/auth';
+import { getAuthUser } from '../../utils/auth';
+import { todayKey } from '../../utils/time';
+import apiClient from '../../services/apiClient';
 
 const RAZORPAY_KEY_ID = 'rzp_test_TaceAtw6quWlFr';
 
@@ -9,18 +11,20 @@ export default function Checkout() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [turf, setTurf] = useState(null);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(params.get('date') || todayKey());
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const slot = params.get('slot') || '';
   const user = getAuthUser() || {};
-  const [startTime, endTime] = slot.split(' - ');
+  const [startTime, endTime] = slot.split('-').map((time) => time.trim());
 
   useEffect(() => {
     const id = params.get('turf');
     if (!id) return;
-    fetch(`http://localhost:5000/api/turfs/${id}`).then((response) => response.json().then((data) => response.ok ? data : Promise.reject(new Error(data.message)))).then(({ data }) => setTurf(data)).catch((requestError) => setError(requestError.message || 'Unable to load turf.'));
+    apiClient.get(`/turfs/${id}`)
+      .then(({ data }) => setTurf(data))
+      .catch((requestError) => setError(requestError.message || 'Unable to load turf.'));
   }, [params]);
 
   async function confirmBooking() {
@@ -32,26 +36,23 @@ export default function Checkout() {
       const bookingData = { turf: turf._id, date, startTime, endTime, sport: turf.sports?.[0] || 'Multi-sport' };
 
       if (paymentMethod === 'cod') {
-        const response = await fetch('http://localhost:5000/api/users/bookings', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${getAuthToken()}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(bookingData),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Booking failed.');
-        navigate(`/payment/success?venue=${encodeURIComponent(turf.name)}&amount=${encodeURIComponent(String(Number(turf.pricePerHour || 0)))}`, { replace: true });
+        const result = await apiClient.post('/users/bookings', bookingData);
+        navigate(`/payment/success?venue=${encodeURIComponent(turf.name)}&amount=${encodeURIComponent(String(result.booking?.amount || 0))}`, { replace: true });
         return;
       }
 
-      const orderResponse = await fetch('http://localhost:5000/api/users/payments/create-order', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${getAuthToken()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ turfId: turf._id, amount: Number(turf.pricePerHour || 0), bookingData }),
+      const orderPayload = await apiClient.post('/users/payments/create-order', {
+        turfId: turf._id,
+        bookingData,
       });
-      const orderPayload = await orderResponse.json();
-      if (!orderResponse.ok || !orderPayload.success) throw new Error(orderPayload.message || 'Unable to prepare payment.');
 
-      const { order } = orderPayload;
+      if (!orderPayload.success) throw new Error(orderPayload.message || 'Unable to prepare payment.');
+
+      const { order, booking } = orderPayload;
+      const goToFailure = (message) => navigate(
+        `/payment/failure?bookingId=${encodeURIComponent(booking._id)}&message=${encodeURIComponent(message || 'Payment was not completed.')}`,
+        { replace: true },
+      );
       if (!window.Razorpay) {
         const script = document.createElement('script');
         script.src = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -71,23 +72,19 @@ export default function Checkout() {
         description: `Booking for ${turf.name}`,
         order_id: order.id,
         handler: async function (paymentResponse) {
-          const verifyResponse = await fetch('http://localhost:5000/api/users/payments/verify', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${getAuthToken()}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          try {
+            const verifyPayload = await apiClient.post('/users/payments/verify', {
               razorpay_order_id: paymentResponse.razorpay_order_id,
               razorpay_payment_id: paymentResponse.razorpay_payment_id,
               razorpay_signature: paymentResponse.razorpay_signature,
-              bookingData,
-            }),
-          });
+              bookingId: booking._id,
+            });
 
-          const verifyPayload = await verifyResponse.json();
-          if (!verifyResponse.ok || !verifyPayload.success) {
-            throw new Error(verifyPayload.message || 'Payment verification failed.');
+            if (!verifyPayload.success) throw new Error(verifyPayload.message || 'Payment verification failed.');
+            navigate(`/payment/success?venue=${encodeURIComponent(turf.name)}&amount=${encodeURIComponent(String(booking.amount))}`, { replace: true });
+          } catch (paymentError) {
+            goToFailure(paymentError.message);
           }
-
-          navigate(`/payment/success?venue=${encodeURIComponent(turf.name)}&amount=${encodeURIComponent(String(Number(turf.pricePerHour || 0)))}`, { replace: true });
         },
         prefill: {
           name: user.name || 'Guest User',
@@ -96,10 +93,14 @@ export default function Checkout() {
         theme: { color: '#16a34a' },
         modal: {
           ondismiss: () => {
-            setError('Payment was cancelled.');
+            goToFailure('You closed the payment window before completing payment.');
             setSaving(false);
           },
         },
+      });
+      razorpay.on('payment.failed', (response) => {
+        goToFailure(response.error?.description || 'Payment failed. You can retry from My Bookings.');
+        setSaving(false);
       });
 
       razorpay.open();

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { getImageUrl } from '../utils/imageUrl';
 
 const readFavoriteIds = () => {
   try {
@@ -10,7 +11,7 @@ const readFavoriteIds = () => {
 };
 
 export default function TurfCard({ turf }) {
-  const image = turf.image?.startsWith('/') ? `http://localhost:5000${turf.image}` : turf.image;
+  const image = getImageUrl(turf.image);
   const [favorite, setFavorite] = useState(() => readFavoriteIds().includes(turf.id));
 
   useEffect(() => {
@@ -27,7 +28,6 @@ export default function TurfCard({ turf }) {
   const toggleFavorite = (event) => {
     event.preventDefault();
     event.stopPropagation();
-
     const currentIds = readFavoriteIds();
     const nextIds = favorite ? currentIds.filter((id) => id !== turf.id) : [...new Set([...currentIds, turf.id])];
     localStorage.setItem('favoriteTurfs', JSON.stringify(nextIds));
@@ -42,6 +42,9 @@ export default function TurfCard({ turf }) {
       ? 'turfCardBadge filling'
       : 'turfCardBadge booked';
 
+  // Offer badge: shown when the turf has an active offer
+  const hasOffer = Boolean(turf.offer);
+
   return (
     <article className="turfCard">
       <div
@@ -49,7 +52,16 @@ export default function TurfCard({ turf }) {
         style={{ backgroundImage: `url(${image})` }}
       >
         <span className={badgeClass}>{turf.status}</span>
-        <button className={`favoriteButton ${favorite ? 'active' : ''}`} onClick={toggleFavorite} aria-label={favorite ? 'Remove favorite' : 'Add favorite'}>
+        {hasOffer && (
+          <span className="turfOfferBadge">
+            🏷️ {turf.offer}
+          </span>
+        )}
+        <button
+          className={`favoriteButton ${favorite ? 'active' : ''}`}
+          onClick={toggleFavorite}
+          aria-label={favorite ? 'Remove favorite' : 'Add favorite'}
+        >
           {favorite ? '♥' : '♡'}
         </button>
       </div>
@@ -62,9 +74,14 @@ export default function TurfCard({ turf }) {
             {turf.rating}
             <span>({turf.reviews})</span>
           </span>
-          <span className="turfCardPrice">{turf.price}</span>
+          <div className="turfCardPricing">
+            {hasOffer && turf.originalPrice && (
+              <span className="turfCardOriginalPrice">{turf.originalPrice}</span>
+            )}
+            <span className="turfCardPrice">{turf.price}</span>
+          </div>
         </div>
-        <Link className="turfCardBtn" to={`/turfs/${turf.id}`}>
+        <Link className="turfCardBtn" to={`/turfs/${turf.id}${turf.bookingDate ? `?date=${encodeURIComponent(turf.bookingDate)}` : ''}`}>
           Book Now →
         </Link>
       </div>

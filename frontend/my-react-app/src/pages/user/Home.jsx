@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Header, Footer } from '../../components/Layout';
-import Pagination from '../../components/Pagination';
 import { images, categories, testimonials } from '../../data/turfs';
+import { turfService } from '../../services/turfService';
+import { getImageUrl } from '../../utils/imageUrl';
+
 
 const steps = [
   {
@@ -23,32 +25,33 @@ const steps = [
 ];
 
 export default function Home() {
+  const navigate = useNavigate();
+  const [searchLocation, setSearchLocation] = useState('');
+  const [searchDate, setSearchDate] = useState('');
+  const [searchSport, setSearchSport] = useState('');
   const [featured, setFeatured] = useState([]);
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ totalPages: 1, totalItems: 0 });
-
+  const [areas, setAreas] = useState([]);
   useEffect(() => {
-    fetch(`http://localhost:5000/api/turfs?page=${page}&limit=5`)
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Unable to load turfs.')))
-      .then(({ data, pagination: result }) => {
-        setFeatured(data.map((turf) => ({
+    turfService.list({ page: '1', limit: '50', sort: 'rating' })
+      .then((data) => {
+        const turfs = data.turfs || [];
+        setAreas([...new Set(turfs.map((turf) => turf.location?.city).filter(Boolean))].sort((a, b) => a.localeCompare(b)));
+        setFeatured(turfs.slice(0, 3).map((turf) => ({
           id: turf._id,
           name: turf.name,
           area: `${turf.location.city}, ${turf.location.state || ''}`,
           image: turf.primaryImage || turf.images?.[0] || images.hero,
           price: `₹${turf.pricePerHour}/hr`,
-          rating: 'New',
-          reviews: 0,
+          rating: turf.averageRating ? turf.averageRating.toFixed(1) + ' ★' : 'New',
+          reviews: turf.reviewCount || 0,
           sport: turf.sports?.[0] || 'Multi-sport',
           status: turf.status === 'Active' ? 'Available' : 'Booked',
         })));
-        setPagination(result || { totalPages: 1, totalItems: data.length });
       })
       .catch(() => {
         setFeatured([]);
-        setPagination({ totalPages: 1, totalItems: 0 });
       });
-  }, [page]);
+  }, []);
 
   return (
     <main className="shell">
@@ -71,23 +74,34 @@ export default function Home() {
           </p>
 
           {/* Search Bar */}
-          <div className="heroSearch">
+          <form className="heroSearch" onSubmit={(event) => {
+            event.preventDefault();
+            const params = new URLSearchParams();
+            if (searchLocation) params.set('city', searchLocation);
+            if (searchDate) params.set('date', searchDate);
+            if (searchSport) params.set('sport', searchSport);
+            navigate(`/turfs${params.size ? `?${params.toString()}` : ''}`);
+          }}>
             <div className="heroSearchField">
-              <label>📍 Location</label>
-              <span>Select City or Area</span>
+              <label htmlFor="home-search-location">Location</label>
+              <select id="home-search-location" value={searchLocation} onChange={(event) => setSearchLocation(event.target.value)}>
+                <option value="">Select an area</option>
+                {areas.map((area) => <option key={area} value={area}>{area}</option>)}
+              </select>
             </div>
             <div className="heroSearchField">
-              <label>📅 Date</label>
-              <span>Pick a date</span>
+              <label htmlFor="home-search-date">Date</label>
+              <input id="home-search-date" type="date" value={searchDate} onChange={(event) => setSearchDate(event.target.value)} />
             </div>
             <div className="heroSearchField">
-              <label>⚽ Sport</label>
-              <span>All Sports</span>
+              <label htmlFor="home-search-sport">Sport</label>
+              <select id="home-search-sport" value={searchSport} onChange={(event) => setSearchSport(event.target.value)}>
+                <option value="">All sports</option>
+                {['Football', 'Cricket', 'Tennis', 'Basketball', 'Badminton'].map((sport) => <option key={sport} value={sport}>{sport}</option>)}
+              </select>
             </div>
-            <Link className="heroSearchBtn" to="/turfs">
-              🔍 Search
-            </Link>
-          </div>
+            <button className="heroSearchBtn" type="submit">Search</button>
+          </form>
         </div>
       </section>
 
@@ -115,7 +129,7 @@ export default function Home() {
             <Link className="venueCard" key={turf.id} to={`/turfs/${turf.id}`}>
               <div
                 className="venueCardImg"
-                style={{ backgroundImage: `url(${turf.image.startsWith('/') ? `http://localhost:5000${turf.image}` : turf.image})` }}
+                style={{ backgroundImage: `url(${getImageUrl(turf.image)})` }}
               >
                 <span
                   className={
@@ -140,11 +154,6 @@ export default function Home() {
             </Link>
           ))}
         </div>
-        {pagination.totalPages > 1 && (
-          <div className="homePagination">
-            <Pagination page={page} totalPages={pagination.totalPages} onChange={setPage} />
-          </div>
-        )}
       </section>
 
       {/* ── HOW IT WORKS ── */}

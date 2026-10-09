@@ -1,14 +1,21 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import DashboardShell from "../../components/DashboardShell";
 import Pagination from "../../components/Pagination";
 import useDebouncedValue from "../../hooks/useDebouncedValue";
-import { getAuthToken } from "../../utils/auth";
-import { confirmAction, showSuccess } from "../../utils/alert";
+import { confirmAction } from "../../utils/alert";
 import TurfImageUploader from "../../components/TurfImageUploader";
+import FieldError from "../../components/FieldError";
+import TimePicker from "../../components/TimePicker";
+import { ownerTurfService } from "../../services/ownerTurfService";
+import ownerTurfReducer, {
+  createTurfEditorState,
+  defaultTurfSlots,
+} from "../../reducers/ownerTurfReducer";
+import { getImageUrl, SERVER_URL } from "../../utils/imageUrl";
+import LeafletLocationPicker from "../../components/LeafletLocationPicker";
 
-const API_URL = "http://localhost:5000/api/owner/turfs";
-const CATEGORY_API_URL = "http://localhost:5000/api/owner/categories";
+
 const CATEGORY_OPTIONS = [
   "Football",
   "Cricket",
@@ -18,69 +25,93 @@ const CATEGORY_OPTIONS = [
   "Badminton",
   "Other",
 ];
-const emptyForm = {
-  name: "",
-  description: "",
-  categories: ["Football"],
-  turfType: "Outdoor",
-  facilities: "",
-  address: "",
-  city: "",
-  state: "",
-  pincode: "",
-  latitude: "",
-  longitude: "",
-  contactNumber: "",
-  openingTime: "06:00",
-  closingTime: "22:00",
-  rules: "",
-};
-const defaultSlots = [{ startTime: "06:00", endTime: "07:00", price: "" }];
-async function readResponse(response) {
-  const text = await response.text();
-  try {
-    return text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(
-      `The server returned an unexpected response (${response.status}).`,
-    );
-  }
-}
+const minutes = (timeStr) => {
+  const str = String(timeStr || "").trim();
+  const match = str.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (!match) return NaN;
+  let hours = Number(match[1]);
+  const mins = Number(match[2]);
+  const period = match[3]?.toUpperCase();
 
+  if (period) {
+    if (period === "AM" && hours === 12) hours = 0;
+    if (period === "PM" && hours !== 12) hours += 12;
+  }
+  return hours * 60 + mins;
+};
+const validateSlots = (slots, openingTime, closingTime) => {
+  const opening = minutes(openingTime);
+  let closing = minutes(closingTime);
+  if (closing === 0) closing = 1440;
+
+  if (
+    !Number.isFinite(opening) ||
+    !Number.isFinite(closing) ||
+    opening >= closing
+  )
+    return "Opening time must be before closing time.";
+  if (!slots.length) return "Add at least one available slot.";
+  const checked = slots.map((slot, index) => {
+    let start = minutes(slot.startTime);
+    let end = minutes(slot.endTime);
+    if (end === 0 && start !== 0) end = 1440; 
+    if (end === 0 && start === 0) end = 1440;
+    return { ...slot, index: index + 1, start, end };
+  });
+
+  for (const slot of checked) {
+    if (!Number.isFinite(slot.start) || !Number.isFinite(slot.end))
+      return `Slot ${slot.index} needs a start and end time.`;
+    if (slot.end <= slot.start)
+      return `Slot ${slot.index} must end after it starts.`;
+    if (slot.start < opening || slot.end > closing)
+      return `Slot ${slot.index} must be within the opening hours.`;
+    if (
+      slot.price !== "" &&
+      (!Number.isFinite(Number(slot.price)) || Number(slot.price) < 0)
+    )
+      return `Slot ${slot.index} price must be zero or more.`;
+  }
+  const sorted = [...checked].sort((a, b) => a.start - b.start);
+  if (
+    sorted.some(
+      (slot, index) => index > 0 && sorted[index - 1].end > slot.start,
+    )
+  )
+    return "Time slots cannot overlap.";
+  return "";
+};
 export default function ManageTurfs() {
   const location = useLocation();
   const navigate = useNavigate();
   const createOnly = location.pathname.endsWith("/new");
   const [turfs, setTurfs] = useState([]);
-  const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [editor, dispatch] = useReducer(
+    ownerTurfReducer,
+    undefined,
+    createTurfEditorState,
+  );
+  const { form, editingId, error, imageFiles, slots, success } = editor;
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [refresh, setRefresh] = useState(0);
-  const [imageFiles, setImageFiles] = useState([]);
-  const [slots, setSlots] = useState(defaultSlots);
   const [categories, setCategories] = useState([]);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [existingImages, setExistingImages] = useState([]);
   const debouncedSearch = useDebouncedValue(search);
-  const authHeaders = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${getAuthToken()}`,
-  };
-
+  const handlePlaceSelect = useCallback((place) => {
+    dispatch({ type: "UPDATE_FIELD", name: "address", value: place.address || "" });
+    dispatch({ type: "UPDATE_FIELD", name: "city", value: place.city || "" });
+    dispatch({ type: "UPDATE_FIELD", name: "state", value: place.state || "" });
+    dispatch({ type: "UPDATE_FIELD", name: "pincode", value: place.pincode || "" });
+    dispatch({ type: "UPDATE_FIELD", name: "latitude", value: place.latitude ?? "" });
+    dispatch({ type: "UPDATE_FIELD", name: "longitude", value: place.longitude ?? "" });
+  }, []);
   useEffect(() => {
-    fetch(CATEGORY_API_URL, {
-      headers: { Authorization: `Bearer ${getAuthToken()}` },
-    })
-      .then((response) =>
-        response
-          .json()
-          .then((data) =>
-            response.ok ? data : Promise.reject(new Error(data.message)),
-          ),
-      )
+    ownerTurfService
+      .listCategories()
       .then((data) => setCategories(data.categories || []))
       .catch(() => setCategories([]));
   }, []);
@@ -96,99 +127,108 @@ export default function ManageTurfs() {
     async function loadTurfs() {
       setLoading(true);
       try {
-        const params = new URLSearchParams({
+        const params = {
           search: debouncedSearch,
-          page: String(page),
-          limit: "5",
-        });
-        const response = await fetch(`${API_URL}?${params}`, {
-          headers: authHeaders,
-        });
-        const data = await readResponse(response);
-        if (!response.ok)
-          throw new Error(data.message || "Unable to load turfs.");
+          page,
+          limit: 5,
+        };
+        const data = await ownerTurfService.list(params);
         setTurfs(data.turfs);
         setTotalPages(data.totalPages);
       } catch (requestError) {
-        setError(requestError.message);
+        dispatch({ type: "SET_ERROR", message: requestError.message });
       } finally {
         setLoading(false);
       }
     }
     loadTurfs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, page, refresh]);
+  }, [debouncedSearch, page, refresh, location.pathname]);
+
+  useEffect(() => {
+    const updatedTurf = location.state?.updatedTurf;
+    if (updatedTurf)
+      setTurfs((items) =>
+        items.map((item) =>
+          item._id === updatedTurf._id ? updatedTurf : item,
+        ),
+      );
+  }, [location.state]);
+
+  const updateField = (event) => {
+    const { name , value } = event.target;
+    dispatch({ type: "UPDATE_FIELD", name, value });
+    if (fieldErrors[name])
+      setFieldErrors((errors) => ({ ...errors, [name]: "" }));
+  };
+  const resetForm = () => {
+    setFieldErrors({});
+    setExistingImages([]);
+    dispatch({ type: "RESET" });
+  };
+  function beginEdit(turf) {
+    if (!turf || typeof turf !== "object") {
+      dispatch({ type: "SET_ERROR", message: "Could not load this turf for editing. Return to My Turfs and try again." });
+      return;
+    }
+    const turfLocation = turf.location || {};
+    const turfCategories = Array.isArray(turf.categories) ? turf.categories : [];
+    const nextForm = {
+      name: turf.name,
+      description: turf.description || "",
+      categories: turfCategories.length
+        ? turfCategories
+        : [turf.category || turf.sports?.[0] || "Other"],
+      turfType: turf.turfType || "Outdoor",
+      facilities: (Array.isArray(turf.facilities) ? turf.facilities : []).join(", "),
+      address: turfLocation.address || turf.address || "",
+      city: turfLocation.city || "",
+      state: turfLocation.state || "",
+      pincode: turfLocation.pincode || "",
+      latitude: turfLocation.latitude ?? "",
+      longitude: turfLocation.longitude ?? "",
+      contactNumber: turf.contactNumber || "",
+      offerPrice: turf.offerPrice ?? "",
+      offerTitle: turf.offerTitle || "",
+      openingTime: turf.openingTime || "06:00",
+      closingTime: turf.closingTime || "22:00",
+      rules: turf.rules || "",
+    };
+    const nextSlots = Array.isArray(turf.slots) && turf.slots.length
+      ? turf.slots.map((slot) => ({
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          price: slot.price ?? turf.pricePerHour,
+        }))
+      : [{ ...defaultTurfSlots()[0], price: turf.pricePerHour }];
+    setFieldErrors({});
+    const savedImages = turf.images?.length
+      ? turf.images
+      : turf.primaryImage
+        ? [turf.primaryImage]
+        : [];
+    setExistingImages(savedImages.map((image) => getImageUrl(image)));
+    dispatch({ type: "START_EDIT", turf, form: nextForm, slots: nextSlots });
+  }
 
   useEffect(() => {
     if (createOnly && location.state?.turf) beginEdit(location.state.turf);
   }, [createOnly, location.state]);
-  const updateField = (event) =>
-    setForm({ ...form, [event.target.name]: event.target.value });
-  const resetForm = () => {
-    setEditingId(null);
-    setForm(emptyForm);
-    setImageFiles([]);
-    setSlots(defaultSlots);
-    setError("");
-    setSuccess("");
-  };
-  const beginEdit = (turf) => {
-    setEditingId(turf._id);
-    setForm({
-      name: turf.name,
-      description: turf.description || "",
-      categories: turf.categories?.length
-        ? turf.categories
-        : [turf.category || turf.sports?.[0] || "Other"],
-      turfType: turf.turfType || "Outdoor",
-      facilities: turf.facilities.join(", "),
-      address: turf.location.address,
-      city: turf.location.city,
-      state: turf.location.state || "",
-      pincode: turf.location.pincode || "",
-      latitude: turf.location.latitude ?? "",
-      longitude: turf.location.longitude ?? "",
-      contactNumber: turf.contactNumber || "",
-      openingTime: turf.openingTime || "06:00",
-      closingTime: turf.closingTime || "22:00",
-      rules: turf.rules || "",
-    });
-    setSlots(
-      turf.slots?.length
-        ? turf.slots.map((slot) => ({
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            price: slot.price ?? turf.pricePerHour,
-          }))
-        : [{ ...defaultSlots[0], price: turf.pricePerHour }],
-    );
-    setError("");
-    setSuccess("");
-  };
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setError("");
-    setSuccess("");
+    dispatch({ type: "CLEAR_FEEDBACK" });
     const isEditing = Boolean(editingId);
-    if (!form.name.trim() || !form.address.trim() || !form.city.trim()) {
-      setError("Enter the turf name, address, and city.");
+    const nextFieldErrors = {
+      name: form.name.trim() ? "" : "Turf name is required.",
+      categories: form.categories.length ? "" : "Select at least one category.",
+      address: form.address.trim() ? "" : "Address is required.",
+      city: form.city.trim() ? "" : "City is required.",
+      slots: validateSlots(slots, form.openingTime, form.closingTime),
+    };
+    setFieldErrors(nextFieldErrors);
+    if (Object.values(nextFieldErrors).some(Boolean)) {
       return;
     }
-    if (!form.categories.length) {
-      setError("Select at least one category.");
-      return;
-    }
-
-    const confirmed = await confirmAction({
-      title: isEditing ? "Update Turf Details?" : "Add New Turf?",
-      text: isEditing
-        ? `Save updated details for ${form.name}?`
-        : `Add ${form.name} to venue listings?`,
-      icon: "question",
-      confirmButtonText: isEditing ? "Yes, update turf" : "Yes, add turf",
-    });
-    if (!confirmed) return;
 
     try {
       const body = new FormData();
@@ -198,49 +238,42 @@ export default function ManageTurfs() {
       body.append("categories", JSON.stringify(form.categories));
       body.append("slots", JSON.stringify(slots));
       imageFiles.forEach((file) => body.append("images", file));
-      const response = await fetch(
-        isEditing ? `${API_URL}/${editingId}` : API_URL,
-        {
-          method: isEditing ? "PUT" : "POST",
-          headers: { Authorization: `Bearer ${getAuthToken()}` },
-          body,
-        },
+      if (isEditing) {
+        existingImages.forEach((img) =>
+          body.append("images", img.replace(SERVER_URL, "")),
+        );
+        if (!existingImages.length && !imageFiles.length) body.append("images", "");
+      }
+      const data = await ownerTurfService.save(editingId, body);
+      setTurfs((items) =>
+        isEditing
+          ? items.map((item) => (item._id === data.turf._id ? data.turf : item))
+          : [data.turf, ...items],
       );
-      const data = await readResponse(response);
-      if (!response.ok)
-        throw new Error(data.message || "Unable to save the turf.");
       resetForm();
       const msg = isEditing
         ? "Turf and location updated."
         : "Turf created successfully.";
-      setSuccess(msg);
-      showSuccess(isEditing ? "Turf Updated" : "Turf Created", msg);
+      dispatch({ type: "SET_SUCCESS", message: msg });
       if (createOnly) {
-        navigate("/owner/turfs");
+        navigate("/owner/turfs", { state: { updatedTurf: data.turf } });
         return;
       }
       setPage(1);
       setRefresh((value) => value + 1);
     } catch (requestError) {
-      setError(requestError.message);
+      dispatch({ type: "SET_ERROR", message: requestError.message });
     }
   }
 
   async function toggleListing(turf) {
     try {
-      const response = await fetch(`${API_URL}/${turf._id}/listing`, {
-        method: "PATCH",
-        headers: authHeaders,
-        body: JSON.stringify({ isListed: !turf.isListed }),
-      });
-      const data = await readResponse(response);
-      if (!response.ok)
-        throw new Error(data.message || "Unable to update listing.");
+      const data = await ownerTurfService.setListing(turf._id, !turf.isListed);
       setTurfs((items) =>
         items.map((item) => (item._id === turf._id ? data.turf : item)),
       );
     } catch (requestError) {
-      setError(requestError.message);
+      dispatch({ type: "SET_ERROR", message: requestError.message });
     }
   }
 
@@ -254,16 +287,10 @@ export default function ManageTurfs() {
     });
     if (!confirmed) return;
     try {
-      const response = await fetch(`${API_URL}/${turf._id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
-      });
-      const data = await readResponse(response);
-      if (!response.ok)
-        throw new Error(data.message || "Unable to delete turf.");
+      await ownerTurfService.remove(turf._id);
       setTurfs((items) => items.filter((item) => item._id !== turf._id));
     } catch (requestError) {
-      setError(requestError.message);
+      dispatch({ type: "SET_ERROR", message: requestError.message });
     }
   }
 
@@ -282,7 +309,10 @@ export default function ManageTurfs() {
           <div className="turfList">
             <div className="panelTitle">
               <h2>Your venues</h2>
-              <button onClick={() => navigate("/owner/turfs/new")}>
+              <button
+                data-confirmation-skip="true"
+                onClick={() => navigate("/owner/turfs/new")}
+              >
                 + Add turf
               </button>
             </div>
@@ -303,11 +333,7 @@ export default function ManageTurfs() {
                   <div className="turfItemImage">
                     {turf.primaryImage || turf.images?.[0] ? (
                       <img
-                        src={
-                          (turf.primaryImage || turf.images[0]).startsWith("/")
-                            ? `http://localhost:5000${turf.primaryImage || turf.images[0]}`
-                            : turf.primaryImage || turf.images[0]
-                        }
+                        src={getImageUrl(turf.primaryImage || turf.images[0])}
                         alt={turf.name}
                       />
                     ) : (
@@ -327,6 +353,7 @@ export default function ManageTurfs() {
                   </div>
                   <div className="accountActions">
                     <button
+                      data-confirmation-skip="true"
                       onClick={() =>
                         navigate("/owner/turfs/new", { state: { turf } })
                       }
@@ -366,26 +393,33 @@ export default function ManageTurfs() {
             <form className="turfForm" onSubmit={handleSubmit}>
               <label>
                 Turf name
+                <FieldError message={fieldErrors.name} />
                 <input name="name" value={form.name} onChange={updateField} />
               </label>
               <fieldset className="categoryChoices">
                 <legend>Categories</legend>
+                <FieldError message={fieldErrors.categories} />
                 <div>
                   {categoryOptions.map((category) => (
                     <label key={category}>
                       <input
                         type="checkbox"
                         checked={form.categories.includes(category)}
-                        onChange={() =>
-                          setForm({
-                            ...form,
+                        onChange={() => {
+                          dispatch({
+                            type: "SET_CATEGORIES",
                             categories: form.categories.includes(category)
                               ? form.categories.filter(
                                   (item) => item !== category,
                                 )
                               : [...form.categories, category],
-                          })
-                        }
+                          });
+                          if (fieldErrors.categories)
+                            setFieldErrors((errors) => ({
+                              ...errors,
+                              categories: "",
+                            }));
+                        }}
                       />
                       {category}
                     </label>
@@ -403,6 +437,24 @@ export default function ManageTurfs() {
                   <option>Indoor</option>
                   <option>Other</option>
                 </select>
+              </label>
+              <label>
+                Offer Title (e.g. Full Day Offer)
+                <input
+                  name="offerTitle"
+                  value={form.offerTitle}
+                  onChange={updateField}
+                />
+              </label>
+              <label>
+                Offer Price
+                <input
+                  name="offerPrice"
+                  type="number"
+                  min="0"
+                  value={form.offerPrice}
+                  onChange={updateField}
+                />
               </label>
               <label>
                 Contact number
@@ -429,6 +481,16 @@ export default function ManageTurfs() {
                 />
               </label>
               <label className="wide">
+                Choose venue on the map
+                <FieldError message={fieldErrors.address} />
+                <LeafletLocationPicker
+                  address={form.address}
+                  latitude={form.latitude}
+                  longitude={form.longitude}
+                  onSelect={handlePlaceSelect}
+                />
+              </label>
+              <label className="wide">
                 Address
                 <input
                   name="address"
@@ -438,6 +500,7 @@ export default function ManageTurfs() {
               </label>
               <label>
                 City
+                <FieldError message={fieldErrors.city} />
                 <input name="city" value={form.city} onChange={updateField} />
               </label>
               <label>
@@ -452,6 +515,7 @@ export default function ManageTurfs() {
                   onChange={updateField}
                 />
               </label>
+              <div style={{ display: "none" }}>
               <label>
                 Latitude
                 <input
@@ -472,22 +536,33 @@ export default function ManageTurfs() {
                   onChange={updateField}
                 />
               </label>
+              </div>
               <label>
                 Opening time
-                <input
-                  name="openingTime"
-                  type="time"
+                <TimePicker
                   value={form.openingTime}
-                  onChange={updateField}
+                  ariaLabel="Opening time"
+                  onChange={(value) =>
+                    dispatch({
+                      type: "UPDATE_FIELD",
+                      name: "openingTime",
+                      value,
+                    })
+                  }
                 />
               </label>
               <label>
                 Closing time
-                <input
-                  name="closingTime"
-                  type="time"
+                <TimePicker
                   value={form.closingTime}
-                  onChange={updateField}
+                  ariaLabel="Closing time"
+                  onChange={(value) =>
+                    dispatch({
+                      type: "UPDATE_FIELD",
+                      name: "closingTime",
+                      value,
+                    })
+                  }
                 />
               </label>
               <label className="wide">
@@ -504,50 +579,56 @@ export default function ManageTurfs() {
                   <button
                     type="button"
                     onClick={() =>
-                      setSlots([
-                        ...slots,
-                        {
-                          startTime: form.openingTime,
-                          endTime: form.closingTime,
-                          price: "",
-                        },
-                      ])
+                      dispatch({
+                        type: "SET_SLOTS",
+                        slots: [
+                          ...slots,
+                          {
+                            startTime: form.openingTime,
+                            endTime: form.closingTime,
+                            price: "",
+                          },
+                        ],
+                      })
                     }
                   >
                     + Add slot
                   </button>
                 </div>
+                <FieldError message={fieldErrors.slots} />
                 {slots.map((slot, index) => (
                   <div className="slotEditorRow" key={index}>
                     <label>
                       Start
-                      <input
-                        type="time"
+                      <TimePicker
                         value={slot.startTime}
-                        onChange={(event) =>
-                          setSlots(
-                            slots.map((item, itemIndex) =>
+                        ariaLabel={`Slot ${index + 1} start time`}
+                        onChange={(value) =>
+                          dispatch({
+                            type: "SET_SLOTS",
+                            slots: slots.map((item, itemIndex) =>
                               itemIndex === index
-                                ? { ...item, startTime: event.target.value }
+                                ? { ...item, startTime: value }
                                 : item,
                             ),
-                          )
+                          })
                         }
                       />
                     </label>
                     <label>
                       End
-                      <input
-                        type="time"
+                      <TimePicker
                         value={slot.endTime}
-                        onChange={(event) =>
-                          setSlots(
-                            slots.map((item, itemIndex) =>
+                        ariaLabel={`Slot ${index + 1} end time`}
+                        onChange={(value) =>
+                          dispatch({
+                            type: "SET_SLOTS",
+                            slots: slots.map((item, itemIndex) =>
                               itemIndex === index
-                                ? { ...item, endTime: event.target.value }
+                                ? { ...item, endTime: value }
                                 : item,
                             ),
-                          )
+                          })
                         }
                       />
                     </label>
@@ -559,22 +640,26 @@ export default function ManageTurfs() {
                         value={slot.price}
                         placeholder="Optional"
                         onChange={(event) =>
-                          setSlots(
-                            slots.map((item, itemIndex) =>
+                          dispatch({
+                            type: "SET_SLOTS",
+                            slots: slots.map((item, itemIndex) =>
                               itemIndex === index
                                 ? { ...item, price: event.target.value }
                                 : item,
                             ),
-                          )
+                          })
                         }
                       />
                     </label>
                     <button
                       type="button"
                       onClick={() =>
-                        setSlots(
-                          slots.filter((_, itemIndex) => itemIndex !== index),
-                        )
+                        dispatch({
+                          type: "SET_SLOTS",
+                          slots: slots.filter(
+                            (_, itemIndex) => itemIndex !== index,
+                          ),
+                        })
                       }
                     >
                       Remove
@@ -587,7 +672,11 @@ export default function ManageTurfs() {
                 </small>
               </div>
               <div className="wide">
-                <TurfImageUploader onChange={setImageFiles} />
+                <TurfImageUploader
+                  onChange={(files) => dispatch({ type: "SET_IMAGES", files })}
+                  existingImages={editingId ? existingImages : []}
+                  onRemoveExisting={(image) => setExistingImages((items) => items.filter((item) => item !== image))}
+                />
               </div>
               <div className="formActions">
                 <button className="dashAction" type="submit">

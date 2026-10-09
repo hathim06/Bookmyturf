@@ -3,10 +3,12 @@ import { useEffect, useState } from 'react';
 import { getAuthToken, getAuthUser, clearAuthSession } from '../utils/auth';
 import { confirmAction } from '../utils/alert';
 import Breadcrumbs from './Breadcrumbs';
+import NotificationBell from './NotificationBell';
 
 const getFavoriteCount = () => {
   try {
-    return JSON.parse(localStorage.getItem('favoriteTurfs') || '[]').length;
+    const ids = JSON.parse(localStorage.getItem('favoriteTurfs') || '[]');
+    return Array.isArray(ids) ? new Set(ids.map(String)).size : 0;
   } catch {
     return 0;
   }
@@ -75,11 +77,13 @@ export function Header() {
               </Link>
             )}
             {user.role === 'user' && (
-              <Link className={pathname === '/favorites' ? 'on favoriteNavLink' : 'favoriteNavLink'} to="/favorites">
+              <Link className={pathname === '/favorites' ? 'on favoriteNavLink' : 'favoriteNavLink'} to="/favorites" aria-label={`Favorites${favoriteCount ? `, ${favoriteCount} saved` : ''}`}>
                 Favorites
-                {favoriteCount > 0 && <span className="favoriteBadge">{favoriteCount}</span>}
+                {favoriteCount > 0 && <span className="favoriteBadge" aria-hidden="true">{favoriteCount > 99 ? '99+' : favoriteCount}</span>}
               </Link>
             )}
+            <Link className={pathname === '/support' ? 'on' : ''} to="/support">Support</Link>
+            <NotificationBell />
             <Link className={pathname.includes('/profile') ? 'on' : ''} to={user.role === 'owner' ? '/owner/profile' : user.role === 'admin' ? '/admin/profile' : '/profile'}>
               Profile
             </Link>

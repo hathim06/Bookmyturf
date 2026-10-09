@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import DashboardShell from '../../components/DashboardShell';
 import PasswordInput from '../../components/PasswordInput';
-import { getAuthToken } from '../../utils/auth';
 import { confirmAction, showSuccess } from '../../utils/alert';
 import { validateName, validateEmail, validatePhone, validatePassword } from '../../utils/validation';
 import FormError from '../../components/FormError';
 import FieldError from '../../components/FieldError';
+import { adminService } from '../../services/adminService';
 
-const API_URL = 'http://localhost:5000/api/admin';
 
 export default function CreateOwner() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
@@ -51,12 +50,7 @@ export default function CreateOwner() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/owners`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAuthToken()}` }, body: JSON.stringify(form) });
-
-      const text = await response.text();
-      let data;
-      try { data = text ? JSON.parse(text) : {}; } catch { throw new Error(`The server returned an unexpected response (${response.status}). Make sure the backend is running on port 5000.`); }
-      if (!response.ok) throw new Error(data.message || 'Unable to create the owner.');
+      const data = await adminService.createOwner(form);
       setSuccess(`${data.user.name} has been added as a turf owner.`);
       showSuccess('Owner Created', `${data.user.name} has been added as a turf owner.`);
       setForm({ name: '', email: '', phone: '', password: '' });

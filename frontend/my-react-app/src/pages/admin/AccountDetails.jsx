@@ -2,21 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardShell from "../../components/DashboardShell";
 import Pagination from "../../components/Pagination";
-import { getAuthToken } from "../../utils/auth";
+import { adminService } from "../../services/adminService";
 
-const API_URL = "http://localhost:5000/api/admin";
+
 const PAGE_SIZE = 5;
-
-async function parseResponse(response) {
-  const text = await response.text();
-  try {
-    return text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(
-      `The server returned an unexpected response (${response.status}).`,
-    );
-  }
-}
 
 export default function AccountDetails({ role }) {
   const { id } = useParams();
@@ -28,12 +17,7 @@ export default function AccountDetails({ role }) {
   useEffect(() => {
     async function load() {
       try {
-        const response = await fetch(`${API_URL}/users/${id}`, {
-          headers: { Authorization: `Bearer ${getAuthToken()}` },
-        });
-        const data = await parseResponse(response);
-        if (!response.ok)
-          throw new Error(data.message || "Unable to load account details.");
+        const data = await adminService.getUserById(id);
         if (data.user.role !== role)
           throw new Error("This account does not match this management page.");
         setDetails(data);
@@ -60,7 +44,7 @@ export default function AccountDetails({ role }) {
       subtitle="Account information and activity"
     >
       <section className="accountDetailsPage">
-        <button className="back" onClick={() => navigate(`/admin/${role}s`)}>
+        <button className="back" data-confirmation-skip="true" onClick={() => navigate(`/admin/${role}s`)}>
           ← Back to {role}s
         </button>
         {error && <p className="authError">{error}</p>}
@@ -175,3 +159,5 @@ export default function AccountDetails({ role }) {
     </DashboardShell>
   );
 }
+
+

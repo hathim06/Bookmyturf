@@ -63,6 +63,7 @@ export const loginAccount = async ({ email, password }) => {
 export const createPasswordReset = async (email) => {
   const user = await userModel.findOne({ email });
   if (user) {
+    if (user.googleId) throw new Error("This account uses Google Sign-in. Please log in with Google.");
     await sendOtp(user, "password-reset");
   }
   return true;

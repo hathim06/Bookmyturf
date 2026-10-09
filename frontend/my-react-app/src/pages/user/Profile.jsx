@@ -3,7 +3,7 @@ import { Page } from "../../components/Layout";
 import DashboardShell from "../../components/DashboardShell";
 import { useNavigate } from "react-router-dom";
 import PasswordInput from "../../components/PasswordInput";
-import { getAuthToken, updateAuthUser } from "../../utils/auth";
+import { updateAuthUser } from "../../utils/auth";
 import { confirmAction, showSuccess } from "../../utils/alert";
 import {
   validateName,
@@ -12,8 +12,10 @@ import {
   validatePassword,
   validatePincode,
 } from "../../utils/validation";
+import FieldError from "../../components/FieldError";
+import { userService } from "../../services/userService";
+import { getImageUrl } from "../../utils/imageUrl";
 
-const API_URL = "http://localhost:5000/api/users";
 const emptyProfile = {
   name: "",
   email: "",
@@ -22,11 +24,10 @@ const emptyProfile = {
   pincode: "",
   place: "",
   district: "",
+
 };
-const requestHeaders = () => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${getAuthToken()}`,
-});
+
+
 
 export default function Profile({ role = "user" }) {
   const navigate = useNavigate();
@@ -36,7 +37,6 @@ export default function Profile({ role = "user" }) {
     [editing, setEditing] = useState(false),
     [panel, setPanel] = useState(""),
     [emailForm, setEmailForm] = useState({ email: "", password: "" }),
-    [createPasswordForm, setCreatePasswordForm] = useState({ password: "", confirmPassword: "" }),
     [passwordForm, setPasswordForm] = useState({
       currentPassword: "",
       newPassword: "",
@@ -45,17 +45,13 @@ export default function Profile({ role = "user" }) {
     [loading, setLoading] = useState(true),
     [saving, setSaving] = useState(false),
     [lookupStatus, setLookupStatus] = useState(""),
+    [fieldErrors, setFieldErrors] = useState({ name: "", phone: "", pincode: "" }),
     [error, setError] = useState(""),
     [success, setSuccess] = useState("");
   useEffect(() => {
     async function load() {
       try {
-        const response = await fetch(`${API_URL}/profile`, {
-          headers: requestHeaders(),
-        });
-        const data = await response.json();
-        if (!response.ok)
-          throw new Error(data.message || "Unable to load profile.");
+        const data = await userService.getProfile();
         const user = { ...emptyProfile, ...data.user };
         setForm(user);
         setSavedProfile(user);
@@ -104,8 +100,9 @@ export default function Profile({ role = "user" }) {
     let pinErr = "";
     if (form.pincode) pinErr = validatePincode(form.pincode);
 
+    setFieldErrors({ name: nameErr, phone: phoneErr, pincode: pinErr });
     if (nameErr || phoneErr || pinErr) {
-      return setError(nameErr || phoneErr || pinErr);
+      return;
     }
 
     const confirmed = await confirmAction({
@@ -119,14 +116,7 @@ export default function Profile({ role = "user" }) {
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`${API_URL}/profile`, {
-        method: "PATCH",
-        headers: requestHeaders(),
-        body: JSON.stringify(form),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.message || "Unable to update profile.");
+      const data = await userService.updateProfile(form);
       const user = { ...emptyProfile, ...data.user };
       setForm(user);
       setSavedProfile(user);
@@ -134,6 +124,7 @@ export default function Profile({ role = "user" }) {
       setSuccess("Your profile has been updated.");
       showSuccess("Profile Updated", "Your profile details have been saved.");
       setEditing(false);
+      window.location.reload();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -178,20 +169,13 @@ export default function Profile({ role = "user" }) {
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`${API_URL}/profile/picture`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${getAuthToken()}` }, // No Content-Type, fetch sets it with boundary for FormData
-        body: formData,
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.message || "Unable to upload picture.");
-
+      const data = await userService.uploadPicture(formData);
       const user = { ...form, ...data.user };
       setForm(user);
       setSavedProfile(user);
       updateAuthUser(user);
       setSuccess("Profile picture updated successfully.");
+      window.location.reload();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -211,19 +195,13 @@ export default function Profile({ role = "user" }) {
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`${API_URL}/profile/picture`, {
-        method: "DELETE",
-        headers: requestHeaders(),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.message || "Unable to remove picture.");
-
+      const data = await userService.deletePicture();
       const user = { ...form, ...data.user };
       setForm(user);
       setSavedProfile(user);
       updateAuthUser(user);
       setSuccess("Profile picture removed successfully.");
+      window.location.reload();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -256,14 +234,9 @@ export default function Profile({ role = "user" }) {
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        method: "PATCH",
-        headers: requestHeaders(),
-        body: JSON.stringify(body),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.message || "Unable to update account.");
+      const data = isEmail
+        ? await userService.changeEmail(body)
+        : await userService.changePassword(body);
       if (data.requiresOtp)
         return navigate("/verify-otp", { state: { purpose: data.purpose } });
       if (data.user) {
@@ -280,21 +253,6 @@ export default function Profile({ role = "user" }) {
     } finally {
       setSaving(false);
     }
-  }
-
-  async function createPassword(event) {
-    event.preventDefault();
-    if (createPasswordForm.password !== createPasswordForm.confirmPassword) return setError("Passwords do not match.");
-    const passErr = validatePassword(createPasswordForm.password);
-    if (passErr) return setError(passErr);
-    setSaving(true); setError("");
-    try {
-      const response = await fetch(`${API_URL}/profile/password/create`, { method: "POST", headers: requestHeaders(), body: JSON.stringify({ password: createPasswordForm.password }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Unable to create password.");
-      const user = { ...form, ...data.user };
-      setForm(user); setSavedProfile(user); updateAuthUser(data.user); setSuccess("Password created successfully.");
-    } catch (err) { setError(err.message); } finally { setSaving(false); }
   }
 
   const togglePanel = (next) => {
@@ -344,7 +302,7 @@ export default function Profile({ role = "user" }) {
                 >
                   {form.profilePicture ? (
                     <img
-                      src={`http://localhost:5000${form.profilePicture}`}
+                      src={getImageUrl(form.profilePicture)}
                       alt="Profile"
                       style={{
                         width: "100%",
@@ -438,11 +396,13 @@ export default function Profile({ role = "user" }) {
               <div className="profileFields">
                 <label>
                   Full name
+                  <FieldError message={fieldErrors.name} />
                   <input
                     name="name"
                     value={form.name}
                     onChange={updateField}
                     disabled={!editing}
+                    style={fieldErrors.name ? { borderColor: '#ef4444' } : {}}
                   />
                 </label>
                 <label>
@@ -452,15 +412,18 @@ export default function Profile({ role = "user" }) {
                 </label>
                 <label>
                   Phone number
+                  <FieldError message={fieldErrors.phone} />
                   <input
                     name="phone"
                     value={form.phone}
                     onChange={updateField}
                     disabled={!editing}
+                    style={fieldErrors.phone ? { borderColor: '#ef4444' } : {}}
                   />
                 </label>
                 <label>
                   Pincode
+                  <FieldError message={fieldErrors.pincode} />
                   <input
                     name="pincode"
                     value={form.pincode}
@@ -469,6 +432,7 @@ export default function Profile({ role = "user" }) {
                     inputMode="numeric"
                     maxLength="6"
                     placeholder="e.g. 682001"
+                    style={fieldErrors.pincode ? { borderColor: '#ef4444' } : {}}
                   />
                   {lookupStatus && <small>{lookupStatus}</small>}
                 </label>
@@ -524,13 +488,12 @@ export default function Profile({ role = "user" }) {
             <section className="securityCard">
               <div>
                 <h2>Login & security</h2>
-                <p>{form.googleId && !form.hasPassword ? "Create a password for email login." : "Update your email address or password."}</p>
+                <p>{form.googleId ? "This account uses Google sign-in." : "Update your email address or password."}</p>
               </div>
               <div className="securityActions">
                 {!form.googleId && <button type="button" onClick={() => togglePanel("email")}>Change email</button>}
-                {form.googleId && !form.hasPassword ? <button type="button" onClick={() => togglePanel("create-password")}>Create password</button> : !form.googleId && <button type="button" onClick={() => togglePanel("password")}>Change password</button>}
+                {!form.googleId && <button type="button" onClick={() => togglePanel("password")}>Change password</button>}
               </div>
-              {panel === "create-password" && <form className="securityForm" onSubmit={createPassword}><h3>Create password</h3>{error && <p className="authError">{error}</p>}<label>New password<PasswordInput value={createPasswordForm.password} onChange={(event) => setCreatePasswordForm({ ...createPasswordForm, password: event.target.value })} /></label><label>Confirm password<PasswordInput value={createPasswordForm.confirmPassword} onChange={(event) => setCreatePasswordForm({ ...createPasswordForm, confirmPassword: event.target.value })} /></label><button className="authSubmit" disabled={saving}>{saving ? "Creating..." : "Create password"}</button></form>}
               {panel === "email" && (
                 <form
                   className="securityForm"

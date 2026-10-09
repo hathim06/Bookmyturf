@@ -1,0 +1,21 @@
+# Dependencies and generated build output
+**/node_modules/
+**/dist/
+**/dist-ssr/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Runtime uploads and local logs
+backend/uploads/*
+!backend/uploads/.gitkeep
+**/logs/
+*.log
+
+# Local editor and OS files
+.vscode/
+.idea/
+.DS_Store
+*.local

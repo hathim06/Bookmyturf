@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import DashboardShell from '../../components/DashboardShell';
 import Pagination from '../../components/Pagination';
-import { getAuthToken } from '../../utils/auth';
+import { adminService } from '../../services/adminService';
 
-const API_URL = 'http://localhost:5000/api/admin/bookings';
 
 export default function AdminBookings() {
   const [bookings, setBookings] = useState([]);
@@ -15,12 +14,7 @@ export default function AdminBookings() {
   useEffect(() => {
     async function loadBookings() {
       try {
-        const params = new URLSearchParams({ page: String(page), limit: '5' });
-        const response = await fetch(`${API_URL}?${params}`, {
-          headers: { Authorization: `Bearer ${getAuthToken()}` },
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Unable to load bookings.');
+        const data = await adminService.getBookings({ page: String(page), limit: '5' });
         setBookings(Array.isArray(data.bookings) ? data.bookings : []);
         setTotalPages(Math.max(1, Number(data.totalPages || 1)));
       } catch (requestError) {

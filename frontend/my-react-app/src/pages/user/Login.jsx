@@ -6,9 +6,7 @@ import { setAuthSession } from '../../utils/auth';
 import { validateEmail, validatePassword } from '../../utils/validation';
 import FormError from '../../components/FormError';
 import FieldError from '../../components/FieldError';
-import { requestJson } from '../../utils/api';
-
-const API_URL = 'http://localhost:5000/api/users';
+import { authService } from '../../services/authService';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -45,11 +43,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const data = await requestJson(`${API_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+      const data = await authService.login(form);
       setAuthSession(data.token, data.user);
       const destinations = { admin: '/admin/dashboard', owner: '/owner/dashboard', user: '/' };
       navigate(destinations[data.user.role] || '/', { replace: true });
@@ -64,11 +58,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const data = await requestJson(`${API_URL}/google-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential }),
-      });
+      const data = await authService.googleLogin(credentialResponse.credential);
       if (data.token) {
         setAuthSession(data.token, data.user);
         const destinations = { admin: '/admin/dashboard', owner: '/owner/dashboard', user: '/' };

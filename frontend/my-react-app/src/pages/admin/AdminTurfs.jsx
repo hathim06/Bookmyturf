@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 import DashboardShell from '../../components/DashboardShell';
 import Pagination from '../../components/Pagination';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
-import { getAuthToken } from '../../utils/auth';
 import { confirmAction } from '../../utils/alert';
-
-const API_URL = 'http://localhost:5000/api/admin';
+import { adminService } from '../../services/adminService';
+import { getImageUrl } from '../../utils/imageUrl';
 
 export default function AdminTurfs() {
   const [turfs, setTurfs] = useState([]);
@@ -19,10 +18,7 @@ export default function AdminTurfs() {
   useEffect(() => {
     async function load() {
       try {
-        const params = new URLSearchParams({ search: debouncedSearch, page: String(page), limit: '5' });
-        const response = await fetch(`${API_URL}/turfs?${params}`, { headers: { Authorization: `Bearer ${getAuthToken()}` } });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Unable to load turfs.');
+        const data = await adminService.getTurfs({ search: debouncedSearch, page: String(page), limit: '5' });
         setTurfs(data.turfs); setTotalPages(data.totalPages);
       } catch (requestError) { setError(requestError.message); }
     }
@@ -31,22 +27,14 @@ export default function AdminTurfs() {
 
   async function toggleListing(turf) {
     try {
-      const response = await fetch(`${API_URL}/turfs/${turf._id}/listing`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${getAuthToken()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isListed: !turf.isListed }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to update listing.');
+      const data = await adminService.setTurfListing(turf._id, !turf.isListed);
       setTurfs((items) => items.map((item) => item._id === turf._id ? data.turf : item));
     } catch (requestError) { setError(requestError.message); }
   }
 
   async function setStatus(turf, status) {
     try {
-      const response = await fetch(`${API_URL}/turfs/${turf._id}/status`, { method: 'PATCH', headers: { Authorization: `Bearer ${getAuthToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to update status.');
+      const data = await adminService.setTurfStatus(turf._id, status);
       setTurfs((items) => items.map((item) => item._id === turf._id ? data.turf : item));
     } catch (requestError) { setError(requestError.message); }
   }
@@ -54,12 +42,94 @@ export default function AdminTurfs() {
   async function deactivate(turf) {
     if (!await confirmAction({ title: 'Deactivate turf?', text: `${turf.name} will be hidden without deleting its history.`, icon: 'warning', confirmButtonText: 'Yes, deactivate', danger: true })) return;
     try {
-      const response = await fetch(`${API_URL}/turfs/${turf._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getAuthToken()}` } });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to deactivate turf.');
+      await adminService.deleteTurf(turf._id);
       setTurfs((items) => items.filter((item) => item._id !== turf._id));
     } catch (requestError) { setError(requestError.message); }
   }
 
-  return <DashboardShell role="admin" title="Turf listings" subtitle="List or unlist venues across the platform"><section className="managementCard"><div className="panelTitle"><div><h2>All turfs</h2><p>Control which venues are visible to users</p></div></div><input className="managementSearch" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search by turf name or city" />{error && <p className="authError">{error}</p>}{turfs.map((turf) => <div className="accountRow" key={turf._id}><span><b>{turf.name}</b><small>{turf.location.city}</small></span><span><small>Owner: {turf.owner?.name || 'Unknown'}</small><small>₹{turf.pricePerHour}/hour</small></span><span><em className={turf.status !== 'Active' ? 'blocked' : ''}>{turf.status}</em></span><span className="accountActions"><button onClick={() => setSelectedTurf(turf)}>View</button><button onClick={() => toggleListing(turf)}>{turf.isListed ? 'Unlist' : 'List'}</button><button onClick={() => setStatus(turf, turf.status === 'Blocked' ? 'Active' : 'Blocked')}>{turf.status === 'Blocked' ? 'Unblock' : 'Block'}</button><button className="deleteButton" onClick={() => deactivate(turf)}>Delete</button></span></div>)}{!turfs.length && <p className="managementEmpty">No turfs found.</p>}<Pagination page={page} totalPages={totalPages} onChange={setPage} /></section>{selectedTurf && <div className="detailsOverlay" onClick={() => setSelectedTurf(null)}><section className="detailsDialog" onClick={(event) => event.stopPropagation()}><div className="panelTitle"><h2>{selectedTurf.name}</h2><button onClick={() => setSelectedTurf(null)}>×</button></div><div className="adminTurfGallery">{(selectedTurf.images?.length ? selectedTurf.images : []).map((image) => <img key={image} src={image.startsWith('/') ? `http://localhost:5000${image}` : image} alt={selectedTurf.name} />)}</div><p>{selectedTurf.description || 'No description added.'}</p><p><b>Owner:</b> {selectedTurf.owner?.name || 'Unknown'} · <b>Location:</b> {selectedTurf.location.address}, {selectedTurf.location.city}</p><h3>Time slots</h3><div className="adminSlotList">{selectedTurf.slots?.length ? selectedTurf.slots.map((slot) => <span key={`${slot.startTime}-${slot.endTime}`}>{slot.startTime} - {slot.endTime} · ₹{slot.price}</span>) : <span>No slots configured</span>}</div></section></div>}</DashboardShell>;
+  return (
+    <DashboardShell role="admin" title="Turf Listings" subtitle="Manage and moderate all venues on the platform">
+      <section className="managementCard">
+        <div className="panelTitle">
+          <div>
+            <h2>All Turfs</h2>
+            <p>Control which venues are visible to users</p>
+          </div>
+        </div>
+        <input className="managementSearch" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search by turf name or city…" />
+        {error && <p className="authError">{error}</p>}
+        <div className="adminTurfTable">
+          {turfs.length === 0 && <p className="managementEmpty">No turfs found.</p>}
+          {turfs.map((turf) => (
+            <article className="adminTurfRow" key={turf._id}>
+              <div className="adminTurfThumb">
+                {turf.primaryImage || turf.images?.[0]
+                  ? <img src={getImageUrl(turf.primaryImage || turf.images[0])} alt={turf.name} />
+                  : <div className="adminTurfThumbPlaceholder">🏟</div>}
+              </div>
+              <div className="adminTurfInfo">
+                <strong>{turf.name}</strong>
+                <span>{turf.location.city}</span>
+                <span>Owner: {turf.owner?.name || 'Unknown'} · ₹{turf.pricePerHour}/hr</span>
+              </div>
+              <div className="adminTurfStatus">
+                <em className={`statusPill ${turf.status === 'Active' ? 'confirmed' : 'cancelled'}`}>{turf.status}</em>
+                <span className={`listingBadge ${turf.isListed ? 'listed' : ''}`}>{turf.isListed ? 'Listed' : 'Unlisted'}</span>
+              </div>
+              <div className="adminTurfActions">
+                <button className="dashAction small" onClick={() => setSelectedTurf(turf)}>View</button>
+                <button className="outlineDashAction small" onClick={() => toggleListing(turf)}>{turf.isListed ? 'Unlist' : 'List'}</button>
+                <button className="outlineDashAction small" onClick={() => setStatus(turf, turf.status === 'Blocked' ? 'Active' : 'Blocked')}>{turf.status === 'Blocked' ? 'Unblock' : 'Block'}</button>
+                <button className="deleteButton small" onClick={() => deactivate(turf)}>Delete</button>
+              </div>
+            </article>
+          ))}
+        </div>
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+      </section>
+
+      {selectedTurf && (
+        <div className="detailsOverlay" onClick={() => setSelectedTurf(null)}>
+          <section className="turfDetailDialog" onClick={(event) => event.stopPropagation()}>
+            <div className="turfDialogHeader">
+              <div>
+                <p className="pageKicker">TURF DETAILS</p>
+                <h2>{selectedTurf.name}</h2>
+                <p>{selectedTurf.location.address}, {selectedTurf.location.city}</p>
+              </div>
+              <button className="dialogClose" onClick={() => setSelectedTurf(null)}>✕</button>
+            </div>
+            {(selectedTurf.images?.length > 0) && (
+              <div className="turfDialogGallery">
+                {selectedTurf.images.slice(0, 3).map((image) => (
+                  <img key={image} src={getImageUrl(image)} alt={selectedTurf.name} />
+                ))}
+              </div>
+            )}
+            <div className="turfDialogBody">
+              <div className="turfDialogFacts">
+                <div><small>OWNER</small><b>{selectedTurf.owner?.name || 'Unknown'}</b></div>
+                <div><small>PRICE</small><b>₹{selectedTurf.pricePerHour}/hr</b></div>
+                <div><small>STATUS</small><b>{selectedTurf.status}</b></div>
+                <div><small>LISTED</small><b>{selectedTurf.isListed ? 'Yes' : 'No'}</b></div>
+              </div>
+              {selectedTurf.description && <p className="turfDialogDesc">{selectedTurf.description}</p>}
+              <div className="turfDialogSection">
+                <h4>Time Slots</h4>
+                <div className="adminSlotList">
+                  {selectedTurf.slots?.length
+                    ? selectedTurf.slots.map((slot) => (
+                        <span key={`${slot.startTime}-${slot.endTime}`} className="slotPill">
+                          {slot.startTime} – {slot.endTime} · ₹{slot.price}
+                        </span>
+                      ))
+                    : <span className="managementEmpty">No slots configured</span>}
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+    </DashboardShell>
+  );
 }

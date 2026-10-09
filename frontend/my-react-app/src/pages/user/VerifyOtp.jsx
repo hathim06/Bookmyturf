@@ -1,10 +1,10 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getAuthToken, updateAuthUser } from '../../utils/auth';
+import { updateAuthUser } from '../../utils/auth';
 import { validateOtp } from '../../utils/validation';
 import FormError from '../../components/FormError';
+import { userService } from '../../services/userService';
 
-const API_URL = 'http://localhost:5000/api/users';
 const OTP_TIMER_SECONDS = 60;
 
 
@@ -61,22 +61,9 @@ export default function VerifyOtp() {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        signup ? `${API_URL}/verify-signup-otp` : `${API_URL}/profile/verify-otp`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(signup ? {} : { Authorization: `Bearer ${getAuthToken()}` })
-          },
-          body: JSON.stringify(signup ? { email, otp } : { otp })
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Unable to verify OTP.');
-      }
+      const data = signup
+        ? await userService.verifySignupOtp(email, otp)
+        : await userService.verifyOtp({ otp });
 
       if (data.user) {
         updateAuthUser(data.user);
@@ -102,23 +89,9 @@ export default function VerifyOtp() {
     setSuccess('');
 
     try {
-      const response = await fetch(
-        signup ? `${API_URL}/resend-signup-otp` : `${API_URL}/profile/resend-otp`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(signup ? {} : { Authorization: `Bearer ${getAuthToken()}` })
-          },
-
-          body: JSON.stringify(signup ? { email } : {})
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Unable to resend OTP.');
-      }
+      const data = signup
+        ? await userService.resendSignupOtp(email)
+        : await userService.resendOtp();
 
       setSuccess(data.message || 'A new verification code has been sent.');
       setOtp('');

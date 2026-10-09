@@ -10,6 +10,8 @@ const turfSchema = new mongoose.Schema({
   sports: { type: [String], default: [] },
   facilities: { type: [String], default: [] },
   pricePerHour: { type: Number, required: true, min: 0 },
+  offerPrice: { type: Number, min: 0 },
+  offerTitle: { type: String, trim: true, default: "" },
   contactNumber: { type: String, trim: true, default: "" },
   openingTime: { type: String, trim: true, default: "06:00" },
   closingTime: { type: String, trim: true, default: "22:00" },
@@ -35,11 +37,14 @@ const turfSchema = new mongoose.Schema({
     latitude: { type: Number },
     longitude: { type: Number },
   },
+  averageRating: { type: Number, default: 0, min: 0, max: 5 },
+  reviewCount: { type: Number, default: 0 },
 }, { timestamps: true });
 
 turfSchema.index({ "location.city": 1, pricePerHour: 1 });
 turfSchema.index({ sports: 1, status: 1, isListed: 1 });
 turfSchema.index({ category: 1, status: 1, isListed: 1 });
 turfSchema.index({ owner: 1, isDeleted: 1 });
+turfSchema.index({ averageRating: -1, reviewCount: -1 });
 
 export default mongoose.model("turf", turfSchema);

@@ -79,6 +79,11 @@ const turfData = (body) => {
     sports: categories.length ? categories : listFromText(body.sports),
     facilities: listFromText(body.facilities),
     pricePerHour: price,
+    offerPrice:
+      body.offerPrice === "" || body.offerPrice === undefined
+        ? undefined
+        : Number(body.offerPrice),
+    offerTitle: body.offerTitle || "",
     contactNumber: body.contactNumber || "",
     openingTime: body.openingTime || "06:00",
     closingTime: body.closingTime || "22:00",

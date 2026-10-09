@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import DashboardShell from "../../components/DashboardShell";
 import Pagination from "../../components/Pagination";
-import { getAuthToken } from "../../utils/auth";
+import { ownerTurfService } from "../../services/ownerTurfService";
 
-const API_URL = "http://localhost:5000/api/owner/bookings";
 
 export default function OwnerBookings() {
   const [bookings, setBookings] = useState([]);
@@ -15,13 +14,8 @@ export default function OwnerBookings() {
   useEffect(() => {
     async function loadBookings() {
       try {
-        const response = await fetch(API_URL, {
-          headers: { Authorization: `Bearer ${getAuthToken()}` },
-        });
-        const data = await response.json();
-        if (!response.ok)
-          throw new Error(data.message || "Unable to load bookings.");
-        setBookings(Array.isArray(data) ? data : []);
+        const data = await ownerTurfService.getBookings();
+        setBookings(Array.isArray(data) ? data : data.bookings || []);
       } catch (requestError) {
         setError(requestError.message || "Unable to load bookings.");
       } finally {

@@ -1,18 +1,20 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getAuthUser, clearAuthSession } from "../utils/auth";
 import { confirmAction } from "../utils/alert";
+import NotificationBell from "./NotificationBell";
 
 const menus = {
   owner: [
     "Overview",
     "My Turfs",
+    "Offers",
     "Categories",
     "Profile",
     "Bookings",
     "Schedule",
-    "Customers",
-    "Revenue",
-    "Reviews",
+    "Subscription",
+    "Reports",
+    "Support",
   ],
   admin: [
     "Dashboard",
@@ -21,8 +23,8 @@ const menus = {
     "Turfs",
     "Profile",
     "Bookings",
-    "Payments",
     "Reports",
+    "Support",
   ],
 };
 
@@ -47,10 +49,14 @@ export default function DashboardShell({ role, title, subtitle, children }) {
   const destinationFor = (item) => {
     if (role === "owner" && item === "Overview") return "/owner/dashboard";
     if (role === "owner" && item === "My Turfs") return "/owner/turfs";
+    if (role === "owner" && item === "Offers") return "/owner/offers";
     if (role === "owner" && item === "Categories") return "/owner/categories";
     if (role === "owner" && item === "Profile") return "/owner/profile";
     if (role === "owner" && item === "Bookings") return "/owner/bookings";
     if (role === "owner" && item === "Schedule") return "/owner/schedule";
+    if (role === "owner" && item === "Subscription") return "/owner/subscription";
+    if (role === "owner" && item === "Reports") return "/owner/reports";
+    if (role === "owner" && item === "Support") return "/owner/support";
     if (role !== "admin") return null;
     if (item === "Dashboard") return "/admin/dashboard";
     if (item === "Users") return "/admin/users";
@@ -58,6 +64,8 @@ export default function DashboardShell({ role, title, subtitle, children }) {
     if (item === "Bookings") return "/admin/bookings";
     if (item === "Turfs") return "/admin/turfs";
     if (item === "Profile") return "/admin/profile";
+    if (item === "Reports") return "/admin/reports";
+    if (item === "Support") return "/admin/support";
     return null;
   };
 
@@ -73,6 +81,7 @@ export default function DashboardShell({ role, title, subtitle, children }) {
             const destination = destinationFor(item);
             return (
               <button
+                data-confirmation-skip={Boolean(destination)}
                 className={
                   destination
                     ? location.pathname === destination
@@ -103,6 +112,7 @@ export default function DashboardShell({ role, title, subtitle, children }) {
           <input placeholder="Search bookings, customers..." />
           <div>
             🔔{" "}
+            <NotificationBell />
             <span className="dashAvatar">
               {(user.name || "A").slice(0, 1).toUpperCase()}
             </span>
@@ -119,6 +129,7 @@ export default function DashboardShell({ role, title, subtitle, children }) {
             <small>{subtitle}</small>
           </div>
           <button
+            data-confirmation-skip={location.pathname === "/admin/owners/new" || role === "owner"}
             className="dashAction"
             onClick={
               location.pathname === "/admin/owners/new"

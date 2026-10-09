@@ -1,39 +1,85 @@
 import { useEffect, useState } from 'react';
 import { Header, Footer } from '../../components/Layout';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import FilterPanel from '../../components/FilterPanel';
 import Pagination from '../../components/Pagination';
 import TurfCard from '../../components/TurfCard';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
+import { turfService } from '../../services/turfService';
 
 const PAGE_SIZE = 5;
 
+// Compute the best offer label + discounted price for display
+function computeOfferDisplay(turf) {
+  const pricePerHour = turf.pricePerHour || 0;
+
+  // Legacy offerPrice field on turf itself
+  if (turf.offerPrice !== undefined && turf.offerPrice !== null && turf.offerTitle) {
+    return {
+      offer: turf.offerTitle,
+      price: `₹${turf.offerPrice}/hr`,
+      originalPrice: `₹${pricePerHour}/hr`,
+    };
+  }
+
+  // Active offers from the dedicated offers collection (returned in turf list)
+  if (turf.activeOffers?.length) {
+    const best = turf.activeOffers[0];
+    const discounted =
+      best.discountType === 'percentage'
+        ? pricePerHour - (pricePerHour * best.discountValue) / 100
+        : pricePerHour - best.discountValue;
+    return {
+      offer: best.title,
+      price: `₹${Math.max(0, Math.round(discounted))}/hr`,
+      originalPrice: `₹${pricePerHour}/hr`,
+    };
+  }
+
+  return { offer: null, price: `₹${pricePerHour}/hr`, originalPrice: null };
+}
+
 export default function FindTurfs() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { category } = useParams();
   const categoryName = category ? category.charAt(0).toUpperCase() + category.slice(1) : '';
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [city, setCity] = useState(searchParams.get('city') || '');
+  const [selectedDate, setSelectedDate] = useState(searchParams.get('date') || '');
   const [page, setPage] = useState(1);
   const [availableTurfs, setAvailableTurfs] = useState([]);
   const [pagination, setPagination] = useState({ totalPages: 1, totalItems: 0 });
   const [sort, setSort] = useState('newest');
-  const [filters, setFilters] = useState({ sport: categoryName, facility: '', minPrice: '', maxPrice: '' });
+  const [filters, setFilters] = useState({ sport: categoryName || searchParams.get('sport') || '', facility: '', minPrice: '', maxPrice: '' });
   const debouncedSearch = useDebouncedValue(search);
 
   useEffect(() => {
-    setFilters((current) => ({ ...current, sport: categoryName }));
+    setFilters((current) => ({ ...current, sport: categoryName || searchParams.get('sport') || '' }));
     setPage(1);
   }, [categoryName]);
 
   useEffect(() => {
-    const params = new URLSearchParams({ search: debouncedSearch, page: String(page), limit: String(PAGE_SIZE), sort });
+    const query = { search: debouncedSearch, city, page: String(page), limit: String(PAGE_SIZE), sort };
+    if (selectedDate) query.date = selectedDate;
     Object.entries(filters).forEach(([name, value]) => {
-      if (value !== '') params.set(name, value);
+      if (value !== '') query[name] = value;
     });
-    fetch(`http://localhost:5000/api/turfs?${params}`)
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Unable to load turfs.')))
-      .then(({ data, pagination: result }) => { setAvailableTurfs(data); setPagination(result); })
+    turfService.list(query)
+      .then((data) => {
+        setAvailableTurfs(data.turfs || data.data || []);
+        setPagination(data.pagination || { totalPages: data.totalPages || 1, totalItems: (data.turfs || data.data || []).length });
+      })
       .catch(() => { setAvailableTurfs([]); setPagination({ totalPages: 1, totalItems: 0 }); });
-  }, [debouncedSearch, filters, page, sort]);
+  }, [debouncedSearch, city, filters, page, selectedDate, sort]);
+
+  const updateSearchDate = (value) => {
+    setSelectedDate(value);
+    setPage(1);
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('date', value);
+    else next.delete('date');
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <main className="shell findPage">
@@ -49,13 +95,20 @@ export default function FindTurfs() {
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search by turf name, area or sport…"
           />
-          
+          <input aria-label="Filter by city or area" value={city} onChange={(event) => { setCity(event.target.value); setPage(1); }} placeholder="City or area" />
+          <label className="findDateFilter">Availability date
+            <input type="date" value={selectedDate} onChange={(event) => updateSearchDate(event.target.value)} />
+          </label>
         </div>
       </div>
 
       {/* Filter + Cards */}
       <div className="findBody">
-        <FilterPanel filters={filters} onChange={(next) => { setFilters(next); setPage(1); }} onClear={() => { setFilters({ sport: '', facility: '', minPrice: '', maxPrice: '' }); setPage(1); }} />
+        <FilterPanel
+          filters={filters}
+          onChange={(next) => { setFilters(next); setPage(1); }}
+          onClear={() => { setFilters({ sport: '', facility: '', minPrice: '', maxPrice: '' }); setPage(1); }}
+        />
 
         <div className="cardsArea">
           <div className="cardsTopBar">
@@ -72,9 +125,28 @@ export default function FindTurfs() {
           </div>
 
           <div className="cardsGrid">
-            {availableTurfs.map((turf) => (
-              <TurfCard key={turf._id} turf={{ id: turf._id, name: turf.name, image: turf.primaryImage || turf.images?.[0], area: `${turf.location.city}, ${turf.location.state || ''}`, sport: turf.sports?.[0] || 'Multi-sport', price: `₹${turf.pricePerHour}/hr`, rating: 'New', reviews: 0, status: 'Available' }} />
-            ))}
+            {availableTurfs.map((turf) => {
+              const { offer, price, originalPrice } = computeOfferDisplay(turf);
+              return (
+                <TurfCard
+                  key={turf._id}
+                  turf={{
+                    id: turf._id,
+                    name: turf.name,
+                    image: turf.primaryImage || turf.images?.[0],
+                    area: `${turf.location.city}, ${turf.location.state || ''}`,
+                    sport: turf.sports?.[0] || 'Multi-sport',
+                    price,
+                    originalPrice,
+                    offer,
+                    rating: turf.averageRating ? turf.averageRating.toFixed(1) + ' ★' : 'New',
+                    reviews: turf.reviewCount || 0,
+                    status: 'Available',
+                    bookingDate: selectedDate,
+                  }}
+                />
+              );
+            })}
             {availableTurfs.length === 0 && (
               <p
                 style={{

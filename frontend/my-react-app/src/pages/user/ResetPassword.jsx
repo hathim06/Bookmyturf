@@ -4,8 +4,8 @@ import PasswordInput from '../../components/PasswordInput';
 import FormError from '../../components/FormError';
 import FieldError from '../../components/FieldError';
 import { validateOtp, validatePassword } from '../../utils/validation';
+import { userService } from '../../services/userService';
 
-const API_URL = 'http://localhost:5000/api/users';
 const OTP_TIMER_SECONDS = 60;
 
 export default function ResetPassword() {
@@ -45,13 +45,7 @@ export default function ResetPassword() {
     setResending(true);
     setError('');
     try {
-      const response = await fetch(`${API_URL}/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to resend OTP.');
+      await userService.forgotPassword(email);
       setOtp('');
       setTimeLeft(OTP_TIMER_SECONDS);
     } catch (err) {
@@ -71,13 +65,7 @@ export default function ResetPassword() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/verify-password-reset-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Invalid OTP.');
+      await userService.verifyPasswordResetOtp(email, otp);
       setOtpVerified(true);
     } catch (err) {
       setError(err.message);
@@ -97,13 +85,7 @@ export default function ResetPassword() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp, password: form.password }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to reset password.');
+      await userService.resetPassword(email, otp, form.password);
       navigate('/login', { state: { message: 'Password reset successfully. You can now log in.' } });
     } catch (requestError) {
       if (requestError.message.toLowerCase().includes('otp')) {

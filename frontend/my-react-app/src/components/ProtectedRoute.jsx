@@ -1,6 +1,7 @@
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { getAuthToken, getAuthUser, clearAuthSession } from '../utils/auth';
+import { userService } from '../services/userService';
 
 export default function ProtectedRoute({ role, children }) {
   const navigate = useNavigate();
@@ -11,15 +12,13 @@ export default function ProtectedRoute({ role, children }) {
     if (!token) return undefined;
     const checkAccount = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/users/profile', {
-          headers: { Authorization: `Bearer ${getAuthToken()}` },
-        });
-        if (response.status === 403) {
+        await userService.getProfile();
+      } catch (err) {
+        // 403 = blocked, 401 = invalid token
+        if (err.message?.includes('blocked') || err.message?.includes('401') || err.message?.includes('403')) {
           clearAuthSession();
           navigate('/login', { replace: true, state: { message: 'Your account has been blocked.' } });
         }
-      } catch {
-        // The normal page request handles temporary network failures.
       }
     };
     checkAccount();
@@ -31,8 +30,11 @@ export default function ProtectedRoute({ role, children }) {
     return children;
   }
 
+  if (token && user?.role) {
+    const destinations = { admin: "/admin/dashboard", owner: "/owner/dashboard", user: "/" };
+    return <Navigate to={destinations[user.role] || "/"} replace />;
+  }
   clearAuthSession();
   return <Navigate to="/login" replace />;
 }
-
 

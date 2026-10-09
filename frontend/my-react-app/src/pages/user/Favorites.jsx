@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Page } from '../../components/Layout';
 import Pagination from '../../components/Pagination';
 import TurfCard from '../../components/TurfCard';
+import { turfService } from '../../services/turfService';
+
 
 const readFavorites = () => {
   try { return JSON.parse(localStorage.getItem('favoriteTurfs') || '[]'); } catch { return []; }
@@ -27,16 +29,16 @@ export default function Favorites() {
 
       const results = await Promise.allSettled(
         ids.map(async (id) => {
-          const response = await fetch(`http://localhost:5000/api/turfs/${id}`);
-          const payload = await response.json();
-          if (!response.ok || !payload?.data) throw new Error('Failed');
+          const payload = await turfService.getById(id);
+          if (!payload?.data && !payload?.turf) throw new Error('Failed');
+          const data = payload.data || payload.turf;
           return {
-            id: payload.data._id,
-            name: payload.data.name,
-            image: payload.data.primaryImage || payload.data.images?.[0],
-            area: `${payload.data.location.city}, ${payload.data.location.state || ''}`,
-            sport: payload.data.sports?.[0] || 'Multi-sport',
-            price: `₹${payload.data.pricePerHour}/hr`,
+            id: data._id,
+            name: data.name,
+            image: data.primaryImage || data.images?.[0],
+            area: `${data.location.city}, ${data.location.state || ''}`,
+            sport: data.sports?.[0] || 'Multi-sport',
+            price: `₹${data.pricePerHour}/hr`,
             rating: 'New',
             reviews: 0,
             status: 'Available',

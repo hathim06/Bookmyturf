@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import DashboardShell from "../../components/DashboardShell";
-import { getAuthToken } from "../../utils/auth";
 import { confirmAction, showSuccess } from "../../utils/alert";
+import { ownerTurfService } from "../../services/ownerTurfService";
 
-const API_URL = "http://localhost:5000/api/owner/categories";
 const DEFAULT_CATEGORIES = [
   "Football",
   "Cricket",
@@ -20,21 +19,16 @@ export default function OwnerCategories() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadCategories() {
-    try {
-      const response = await fetch(API_URL, {
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.message || "Unable to load categories.");
-      setCategories(data.categories || []);
-    } catch (requestError) {
-      setError(requestError.message || "Unable to load categories.");
-    } finally {
-      setLoading(false);
+    async function loadCategories() {
+      try {
+        const data = await ownerTurfService.listCategories();
+        setCategories(data.categories || []);
+      } catch (requestError) {
+        setError(requestError.message || "Unable to load categories.");
+      } finally {
+        setLoading(false);
+      }
     }
-  }
 
   useEffect(() => {
     loadCategories();
@@ -59,22 +53,18 @@ export default function OwnerCategories() {
     try {
       const results = await Promise.all(
         categoryNames.map(async (categoryName) => {
-          const response = await fetch(API_URL, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${getAuthToken()}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ name: categoryName }),
-          });
-          const data = await response.json();
-          return { response, data, categoryName };
+          try {
+            const data = await ownerTurfService.addCategory({ name: categoryName });
+            return { ok: true, data, categoryName };
+          } catch (error) {
+            return { ok: false, data: error, categoryName };
+          }
         }),
       );
       const added = results
-        .filter(({ response }) => response.ok)
+        .filter(({ ok }) => ok)
         .map(({ data }) => data.category);
-      const failed = results.filter(({ response }) => !response.ok);
+      const failed = results.filter(({ ok }) => !ok);
       if (!added.length && failed.length)
         throw new Error(failed[0].data.message || "Unable to add categories.");
       setCategories((items) =>
@@ -107,13 +97,7 @@ export default function OwnerCategories() {
     });
     if (!confirmed) return;
     try {
-      const response = await fetch(`${API_URL}/${category._id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.message || "Unable to remove category.");
+      await ownerTurfService.removeCategory(category._id);
       setCategories((items) =>
         items.filter((item) => item._id !== category._id),
       );

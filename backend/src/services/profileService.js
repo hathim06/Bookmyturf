@@ -74,6 +74,7 @@ export const createPassword = async (id, password) => {
     throw new Error("Password must be at least 6 characters.");
   const user = await userModel.findById(id);
   if (!user) throw new Error("User not found.");
+  if (user.googleId) throw new Error("Google accounts use Google sign-in and cannot create an email password.");
   if (user.password) throw new Error("This account already has a password.");
   user.password = await bcrypt.hash(password, 10);
   await user.save();

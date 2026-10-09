@@ -40,7 +40,10 @@ export const updateTurf = async (req, res) => {
       {
         ...req.body,
         images: req.files?.length
-          ? req.files.map((file) => `/uploads/${file.filename}`)
+          ? [
+              ...(Array.isArray(req.body.images) ? req.body.images : req.body.images ? [req.body.images] : []),
+              ...req.files.map((file) => `/uploads/${file.filename}`),
+            ]
           : req.body.images,
       },
       req.user._id,
