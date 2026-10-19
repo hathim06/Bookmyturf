@@ -44,12 +44,17 @@ export const login = async (req, res) => {
 };
 export const forgotPassword = async (req, res) => {
   try {
-    if (req.body.email) await createPasswordReset(req.body.email);
+    if (!req.body.email)
+      return res.status(400).json({ message: "Enter your email address." });
+    await createPasswordReset(req.body.email);
     res.json({
       message: "If an account exists for that email, an OTP has been sent.",
     });
-  } catch {
-    res.status(500).json({ message: "Unable to start password reset." });
+  } catch (error) {
+    console.error("Password reset email could not be sent:", error.message);
+    res.status(500).json({
+      message: "Could not send the reset code. Please try again later or contact support.",
+    });
   }
 };
 export const verifyPasswordResetOtp = async (req, res) => {

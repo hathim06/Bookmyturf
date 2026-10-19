@@ -158,14 +158,6 @@ export default function TurfDetails() {
               </div>
             )}
 
-            {/* Legacy offer title banner */}
-            {!offers.length && !date && turf.offerTitle && (
-              <div className="detailsCard" style={{ backgroundColor: "#16a34a", color: "white" }}>
-                <h3>🎁 {turf.offerTitle}</h3>
-                <p>Special offer is currently active for this turf!</p>
-              </div>
-            )}
-
             {/* About */}
             <div className="detailsCard">
               <h3>About this Turf</h3>

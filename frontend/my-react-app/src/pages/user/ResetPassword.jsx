@@ -42,10 +42,16 @@ export default function ResetPassword() {
 
   async function handleResend() {
     if (timeLeft > 0 || resending) return;
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError('Enter your email address first.');
+      return;
+    }
     setResending(true);
     setError('');
     try {
-      await userService.forgotPassword(email);
+      await userService.forgotPassword(normalizedEmail);
+      setEmail(normalizedEmail);
       setOtp('');
       setTimeLeft(OTP_TIMER_SECONDS);
     } catch (err) {
@@ -62,10 +68,16 @@ export default function ResetPassword() {
     const otpErr = validateOtp(otp);
     setFieldErrors((p) => ({ ...p, otp: otpErr }));
     if (otpErr) return;
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError('Enter your email address first.');
+      return;
+    }
 
     setLoading(true);
     try {
-      await userService.verifyPasswordResetOtp(email, otp);
+      await userService.verifyPasswordResetOtp(normalizedEmail, otp.trim());
+      setEmail(normalizedEmail);
       setOtpVerified(true);
     } catch (err) {
       setError(err.message);
@@ -85,7 +97,7 @@ export default function ResetPassword() {
 
     setLoading(true);
     try {
-      await userService.resetPassword(email, otp, form.password);
+      await userService.resetPassword(email.trim().toLowerCase(), otp.trim(), form.password);
       navigate('/login', { state: { message: 'Password reset successfully. You can now log in.' } });
     } catch (requestError) {
       if (requestError.message.toLowerCase().includes('otp')) {

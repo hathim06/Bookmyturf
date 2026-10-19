@@ -23,10 +23,11 @@ export default function ForgotPassword() {
     setFieldErr(emailErr);
     if (emailErr) return;
 
+    const normalizedEmail = email.trim().toLowerCase();
     setLoading(true);
     try {
-      await userService.forgotPassword(email);
-      navigate('/reset-password', { state: { email } });
+      await userService.forgotPassword(normalizedEmail);
+      navigate('/reset-password', { state: { email: normalizedEmail } });
     } catch (requestError) {
       setError(requestError.message);
     } finally {

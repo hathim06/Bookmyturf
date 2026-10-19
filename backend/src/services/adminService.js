@@ -51,7 +51,7 @@ export const getManagedBookings = async (search = "", page = 1, limit = 5) => {
       .find(filter)
       .populate("user", "name email phone")
       .populate("turf", "name location pricePerHour")
-      .sort({ date: -1, createdAt: -1 })
+      .sort({ updatedAt: -1, createdAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit),
     bookingModel.countDocuments(filter),

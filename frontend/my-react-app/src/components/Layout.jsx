@@ -77,6 +77,11 @@ export function Header() {
               </Link>
             )}
             {user.role === 'user' && (
+              <Link className={pathname === '/wallet' ? 'on' : ''} to="/wallet">
+                Wallet
+              </Link>
+            )}
+            {user.role === 'user' && (
               <Link className={pathname === '/favorites' ? 'on favoriteNavLink' : 'favoriteNavLink'} to="/favorites" aria-label={`Favorites${favoriteCount ? `, ${favoriteCount} saved` : ''}`}>
                 Favorites
                 {favoriteCount > 0 && <span className="favoriteBadge" aria-hidden="true">{favoriteCount > 99 ? '99+' : favoriteCount}</span>}

@@ -79,11 +79,6 @@ const turfData = (body) => {
     sports: categories.length ? categories : listFromText(body.sports),
     facilities: listFromText(body.facilities),
     pricePerHour: price,
-    offerPrice:
-      body.offerPrice === "" || body.offerPrice === undefined
-        ? undefined
-        : Number(body.offerPrice),
-    offerTitle: body.offerTitle || "",
     contactNumber: body.contactNumber || "",
     openingTime: body.openingTime || "06:00",
     closingTime: body.closingTime || "22:00",
@@ -220,6 +215,6 @@ export const getOwnerBookings = async (ownerId) => {
     .find({ turf: { $in: turfIds } })
     .populate("user", "name email phone profilePicture")
     .populate("turf", "name")
-    .sort({ date: -1 });
+    .sort({ updatedAt: -1, createdAt: -1, _id: -1 });
   return bookings;
 };

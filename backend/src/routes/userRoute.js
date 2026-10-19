@@ -33,6 +33,7 @@ import {
   retryPaymentOrder,
 } from "../controllers/bookingController.js";
 import { getActiveTurfOffers } from "../controllers/offerController.js";
+import { readWallet } from "../controllers/walletController.js";
 
 const router = express.Router();
 
@@ -73,6 +74,7 @@ router.get("/bookings", protect, listMine);
 router.post("/bookings", protect, create);
 router.patch("/bookings/:id/cancel", protect, cancel);
 router.post("/bookings/:id/retry-payment", protect, retryPaymentOrder);
+router.get("/wallet", protect, readWallet);
 
 // Payment routes
 router.post("/create-order", protect, createPaymentOrder);

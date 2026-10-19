@@ -57,7 +57,16 @@ const userSchema=new mongoose.Schema({
     otpPurpose:{ type:String, default:null },
     isVerified:{ type:Boolean, default:true },
     pendingEmail:{ type:String, default:null },
-    pendingPassword:{ type:String, default:null }
+    pendingPassword:{ type:String, default:null },
+    walletBalance:{ type:Number, default:0, min:0 },
+    walletTransactions:[{
+        type:{ type:String, enum:["credit","debit"], required:true },
+        amount:{ type:Number, required:true, min:0 },
+        reason:{ type:String, required:true },
+        description:{ type:String, default:"" },
+        booking:{ type:mongoose.Schema.Types.ObjectId, ref:"booking", default:null },
+        createdAt:{ type:Date, default:Date.now }
+    }]
 }, 
 { timestamps: true })
 const user=mongoose.model("user",userSchema)

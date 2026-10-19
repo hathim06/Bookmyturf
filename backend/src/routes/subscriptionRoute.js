@@ -5,6 +5,7 @@ import { requireAdmin } from "../middlewares/roleMiddleware.js";
 import {
   listPlans,
   getMySubscription,
+  getMySubscriptionAccess,
   getMySubscriptionHistory,
   createSubscriptionOrder,
   verifySubscriptionPayment,
@@ -22,6 +23,7 @@ const router = express.Router();
 // Owner subscription routes
 router.get("/plans", protect, listPlans);
 router.get("/my", protect, requireOwner, getMySubscription);
+router.get("/access", protect, requireOwner, getMySubscriptionAccess);
 router.get("/my/history", protect, requireOwner, getMySubscriptionHistory);
 router.post("/create-order", protect, requireOwner, createSubscriptionOrder);
 router.post("/verify", protect, requireOwner, verifySubscriptionPayment);

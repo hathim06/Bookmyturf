@@ -25,11 +25,13 @@ export const userService = {
   deletePicture: () => apiClient.delete("/users/profile/picture"),
   changeEmail: (data) => apiClient.patch("/users/profile/email", data),
   changePassword: (data) => apiClient.patch("/users/profile/password", data),
+  setPassword: (data) => apiClient.post("/users/profile/password/create", data),
   verifyOtp: (data) => apiClient.post("/users/profile/verify-otp", data),
   resendOtp: () => apiClient.post("/users/profile/resend-otp", {}),
 
   // Bookings
   getBookings: () => apiClient.get("/users/bookings"),
+  getWallet: () => apiClient.get("/users/wallet"),
   cancelBooking: (id, reason) =>
     apiClient.patch(`/users/bookings/${id}/cancel`, { reason }),
   retryPaymentOrder: (id) => apiClient.post(`/users/bookings/${id}/retry-payment`, {}),

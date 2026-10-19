@@ -3,11 +3,13 @@ import DashboardShell from "../../components/DashboardShell";
 import { subscriptionService } from "../../services/subscriptionService";
 import { getAuthUser } from "../../utils/auth";
 import Swal from "sweetalert2";
+import { useOwnerSubscription } from "../../contexts/ownerSubscriptionContext";
 
 const PLAN_ICONS = { monthly: "👑" };
 const PLAN_COLORS = { monthly: "#f59e0b" };
 
 export default function OwnerSubscription() {
+  const { refreshSubscriptionAccess } = useOwnerSubscription();
   const [plans, setPlans] = useState({});
   const [active, setActive] = useState(null);
   const [history, setHistory] = useState([]);
@@ -96,7 +98,7 @@ export default function OwnerSubscription() {
                 color: "#f1f5f9",
                 confirmButtonColor: PLAN_COLORS[planKey],
               });
-              fetchAll();
+              await Promise.all([fetchAll(), refreshSubscriptionAccess()]);
             } else {
               throw new Error(verifyPayload.message || "Verification failed");
             }

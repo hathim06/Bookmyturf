@@ -13,15 +13,6 @@ const PAGE_SIZE = 5;
 function computeOfferDisplay(turf) {
   const pricePerHour = turf.pricePerHour || 0;
 
-  // Legacy offerPrice field on turf itself
-  if (turf.offerPrice !== undefined && turf.offerPrice !== null && turf.offerTitle) {
-    return {
-      offer: turf.offerTitle,
-      price: `₹${turf.offerPrice}/hr`,
-      originalPrice: `₹${pricePerHour}/hr`,
-    };
-  }
-
   // Active offers from the dedicated offers collection (returned in turf list)
   if (turf.activeOffers?.length) {
     const best = turf.activeOffers[0];

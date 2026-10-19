@@ -3,6 +3,7 @@ import DashboardShell from "../../components/DashboardShell";
 import { ownerTurfService } from "../../services/ownerTurfService";
 import { confirmAction } from "../../utils/alert";
 import { getImageUrl } from "../../utils/imageUrl";
+import { useOwnerSubscription } from "../../contexts/ownerSubscriptionContext";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -16,6 +17,7 @@ const emptyForm = {
 };
 
 export default function OwnerOffers() {
+  const { requireSubscription } = useOwnerSubscription();
   const [turfs, setTurfs] = useState([]);
   const [offers, setOffers] = useState([]);
   const [selectedTurfId, setSelectedTurfId] = useState("");
@@ -54,6 +56,7 @@ export default function OwnerOffers() {
   }
 
   function beginCreate() {
+    if (!requireSubscription()) return;
     setEditingId(null);
     setForm({ ...emptyForm, turfId: selectedTurfId });
     setShowForm(true);
@@ -85,6 +88,7 @@ export default function OwnerOffers() {
     if (!form.discountValue || Number(form.discountValue) <= 0)
       return setError("Enter a valid discount value.");
     if (!form.offerDate) return setError("Choose the date this offer applies to.");
+    if (!editingId && !requireSubscription()) return;
     setSaving(true);
     try {
       const payload = {

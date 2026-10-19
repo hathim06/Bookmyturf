@@ -12,15 +12,14 @@ const publicFilter = {
 };
 
 // Fetch active offers for a list of turf IDs
-const getActiveOffersForTurfs = async (turfIds) => {
+const getActiveOffersForTurfs = async (turfIds, dateKey = utcTodayKey()) => {
   const offers = await offerModel
     .find({
       turf: { $in: turfIds },
       isActive: true,
     })
     .lean();
-  const todayKey = utcTodayKey();
-  const valid = offers.filter((offer) => isOfferValidOnDate(offer, todayKey));
+  const valid = offers.filter((offer) => isOfferValidOnDate(offer, dateKey));
   // Group by turf
   const map = {};
   for (const offer of valid) {
@@ -122,7 +121,7 @@ export const listPublicTurfs = async ({
 
   // Attach active offers to each turf
   const turfIds = turfs.map((t) => t._id);
-  const offersMap = await getActiveOffersForTurfs(turfIds);
+  const offersMap = await getActiveOffersForTurfs(turfIds, date || utcTodayKey());
   const turfsWithOffers = turfs.map((turf) => ({
     ...turf,
     activeOffers: offersMap[String(turf._id)] || [],
@@ -160,3 +159,4 @@ export const getPublicTurf = async (id) => {
 
   return { ...turf, activeOffers };
 };
+

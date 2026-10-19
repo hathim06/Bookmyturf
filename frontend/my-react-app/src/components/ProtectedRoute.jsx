@@ -2,6 +2,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { getAuthToken, getAuthUser, clearAuthSession } from '../utils/auth';
 import { userService } from '../services/userService';
+import OwnerSubscriptionProvider from '../contexts/OwnerSubscriptionProvider';
 
 export default function ProtectedRoute({ role, children }) {
   const navigate = useNavigate();
@@ -27,7 +28,9 @@ export default function ProtectedRoute({ role, children }) {
   }, [navigate, token]);
 
   if (token && user?.role === role) {
-    return children;
+    return role === 'owner'
+      ? <OwnerSubscriptionProvider>{children}</OwnerSubscriptionProvider>
+      : children;
   }
 
   if (token && user?.role) {

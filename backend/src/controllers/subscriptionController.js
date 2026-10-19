@@ -2,6 +2,7 @@ import crypto from "crypto";
 import Razorpay from "razorpay";
 import {
   getOwnerSubscription,
+  getOwnerSubscriptionAccess,
   getOwnerSubscriptionHistory,
   createSubscription,
   cancelSubscription,
@@ -68,6 +69,14 @@ export const getMySubscription = async (req, res) => {
   try {
     const subscription = await getOwnerSubscription(req.user._id);
     res.json(subscription || null);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getMySubscriptionAccess = async (req, res) => {
+  try {
+    res.json(await getOwnerSubscriptionAccess(req.user._id));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

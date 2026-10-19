@@ -2711,3 +2711,288 @@ footer {
   .detailsHeroSide { right: 12px; bottom: 12px; }
 }
 
+/* Owner subscription status and subscribe prompt */
+.ownerSubscriptionBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 24px 0;
+  padding: 13px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ownerSubscriptionBanner--warning {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #78350f;
+}
+.ownerSubscriptionBanner button,
+.ownerSubscriptionModalAction {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ownerSubscriptionBanner--warning button {
+  background: #b45309;
+}
+.ownerSubscriptionModalBackdrop {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 58%);
+}
+.ownerSubscriptionModal {
+  position: relative;
+  width: min(100%, 440px);
+  padding: 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  background: #fff;
+  color: #0f172a;
+  text-align: center;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 25%);
+}
+.ownerSubscriptionModalClose {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 28px;
+  cursor: pointer;
+}
+.ownerSubscriptionModalIcon {
+  display: inline-grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 16px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 26px;
+}
+.ownerSubscriptionModal h2 {
+  margin: 16px 0 8px;
+}
+.ownerSubscriptionModal p {
+  margin: 0 0 22px;
+  color: #475569;
+  line-height: 1.6;
+}
+.ownerSubscriptionModalAction,
+.ownerSubscriptionModalDismiss {
+  width: 100%;
+  padding: 12px 16px;
+}
+.ownerSubscriptionModalDismiss {
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-weight: 600;
+  cursor: pointer;
+}
+@media (max-width: 640px) {
+  .ownerSubscriptionBanner {
+    align-items: stretch;
+    flex-direction: column;
+    margin: 12px 14px 0;
+  }
+}
+
+.cancelBookingDetailButton {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 12px 16px;
+  background: #fff7f7;
+  color: #b91c1c;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cancelBookingDetailButton:hover:not(:disabled) {
+  background: #fee2e2;
+}
+.cancelBookingDetailButton:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+.bookingRefundNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  border: 1px solid #a7f3d0;
+  border-radius: 14px;
+  background: #ecfdf5;
+  color: #065f46;
+}
+.bookingRefundNotice div {
+  display: grid;
+  gap: 4px;
+}
+.bookingRefundNotice span {
+  font-size: 14px;
+}
+.bookingRefundNotice a {
+  flex: 0 0 auto;
+  color: #047857;
+  font-weight: 700;
+}
+.bookingWalletRefund {
+  color: #047857;
+  font-weight: 600;
+}
+.bookingWalletRefund a {
+  color: #047857;
+  text-decoration: underline;
+}
+.walletPage {
+  display: grid;
+  gap: 22px;
+}
+.walletBalanceCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: clamp(24px, 5vw, 38px);
+  border-radius: 22px;
+  background: linear-gradient(125deg, #064e3b, #059669 65%, #34d399);
+  color: #fff;
+  box-shadow: 0 18px 40px rgb(5 150 105 / 18%);
+}
+.walletBalanceCard div {
+  display: grid;
+  gap: 8px;
+}
+.walletBalanceCard div span {
+  color: #d1fae5;
+  font-size: 14px;
+}
+.walletBalanceCard strong {
+  font-size: clamp(32px, 7vw, 48px);
+  letter-spacing: -.04em;
+}
+.walletBalanceIcon {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 32%);
+  border-radius: 20px;
+  background: rgb(255 255 255 / 12%);
+  font-size: 30px;
+  font-weight: 800;
+}
+.walletHistoryCard {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #fff;
+}
+.walletHistoryHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.walletHistoryHeading h2,
+.walletHistoryHeading p {
+  margin: 0;
+}
+.walletHistoryHeading p {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 14px;
+}
+.walletHistoryHeading > span {
+  color: #64748b;
+  font-size: 13px;
+}
+.walletEmpty {
+  padding: 40px 20px;
+  color: #64748b;
+  text-align: center;
+}
+.walletEmpty > span {
+  color: #10b981;
+  font-size: 32px;
+}
+.walletEmpty h3 {
+  margin: 8px 0;
+  color: #0f172a;
+}
+.walletEmpty p {
+  margin: 0;
+}
+.walletTransaction {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 24px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.walletTransaction:last-child {
+  border-bottom: 0;
+}
+.walletTransactionIcon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 14px;
+  background: #d1fae5;
+  color: #047857;
+  font-size: 22px;
+  font-weight: 800;
+}
+.walletTransactionInfo {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+}
+.walletTransactionInfo small,
+.walletTransactionInfo time {
+  color: #64748b;
+  font-size: 12px;
+}
+.walletCredit {
+  color: #047857;
+  white-space: nowrap;
+}
+.walletDebit {
+  color: #b91c1c;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .bookingRefundNotice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .walletHistoryHeading,
+  .walletTransaction {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}

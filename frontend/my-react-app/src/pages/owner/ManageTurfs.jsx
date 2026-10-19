@@ -14,6 +14,7 @@ import ownerTurfReducer, {
 } from "../../reducers/ownerTurfReducer";
 import { getImageUrl, SERVER_URL } from "../../utils/imageUrl";
 import LeafletLocationPicker from "../../components/LeafletLocationPicker";
+import { useOwnerSubscription } from "../../contexts/ownerSubscriptionContext";
 
 
 const CATEGORY_OPTIONS = [
@@ -82,6 +83,7 @@ const validateSlots = (slots, openingTime, closingTime) => {
   return "";
 };
 export default function ManageTurfs() {
+  const { requireSubscription } = useOwnerSubscription();
   const location = useLocation();
   const navigate = useNavigate();
   const createOnly = location.pathname.endsWith("/new");
@@ -187,8 +189,6 @@ export default function ManageTurfs() {
       latitude: turfLocation.latitude ?? "",
       longitude: turfLocation.longitude ?? "",
       contactNumber: turf.contactNumber || "",
-      offerPrice: turf.offerPrice ?? "",
-      offerTitle: turf.offerTitle || "",
       openingTime: turf.openingTime || "06:00",
       closingTime: turf.closingTime || "22:00",
       rules: turf.rules || "",
@@ -218,6 +218,7 @@ export default function ManageTurfs() {
     event.preventDefault();
     dispatch({ type: "CLEAR_FEEDBACK" });
     const isEditing = Boolean(editingId);
+    if (!isEditing && !requireSubscription()) return;
     const nextFieldErrors = {
       name: form.name.trim() ? "" : "Turf name is required.",
       categories: form.categories.length ? "" : "Select at least one category.",
@@ -437,24 +438,6 @@ export default function ManageTurfs() {
                   <option>Indoor</option>
                   <option>Other</option>
                 </select>
-              </label>
-              <label>
-                Offer Title (e.g. Full Day Offer)
-                <input
-                  name="offerTitle"
-                  value={form.offerTitle}
-                  onChange={updateField}
-                />
-              </label>
-              <label>
-                Offer Price
-                <input
-                  name="offerPrice"
-                  type="number"
-                  min="0"
-                  value={form.offerPrice}
-                  onChange={updateField}
-                />
               </label>
               <label>
                 Contact number

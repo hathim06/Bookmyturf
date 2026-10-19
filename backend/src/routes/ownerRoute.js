@@ -10,6 +10,7 @@ import {
 import { protect } from "../middlewares/authMiddleware.js";
 import { requireOwner } from "../middlewares/roleMiddleware.js";
 import upload from "../middlewares/uploadMiddleware.js";
+import { requireOwnerSubscription } from "../middlewares/subscriptionMiddleware.js";
 import {
   createCategory,
   deleteCategory,
@@ -28,7 +29,7 @@ router.use(protect, requireOwner);
 
 // Turfs
 router.get("/turfs", listTurfs);
-router.post("/turfs", upload.array("images", 8), createTurf);
+router.post("/turfs", requireOwnerSubscription, upload.array("images", 8), createTurf);
 router.put("/turfs/:id", upload.array("images", 8), updateTurf);
 router.patch("/turfs/:id/listing", toggleTurfListing);
 router.delete("/turfs/:id", removeTurf);
@@ -38,13 +39,13 @@ router.get("/bookings", listOwnerBookings);
 
 // Categories
 router.get("/categories", listCategories);
-router.post("/categories", createCategory);
+router.post("/categories", requireOwnerSubscription, createCategory);
 router.delete("/categories/:id", deleteCategory);
 
 // Offers
 router.get("/offers", listOwnerOffers);
 router.get("/turfs/:turfId/offers", listTurfOffers);
-router.post("/offers", createOffer);
+router.post("/offers", requireOwnerSubscription, createOffer);
 router.put("/offers/:id", updateOffer);
 router.delete("/offers/:id", deleteOffer);
 

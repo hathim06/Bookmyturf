@@ -6,6 +6,7 @@ export const subscriptionService = {
 
   // Owner
   getMySubscription: () => apiClient.get("/subscriptions/my"),
+  getMySubscriptionAccess: () => apiClient.get("/subscriptions/access"),
   getMyHistory: () => apiClient.get("/subscriptions/my/history"),
   createOrder: (data) => apiClient.post("/subscriptions/create-order", data),
   verifyPayment: (data) => apiClient.post("/subscriptions/verify", data),

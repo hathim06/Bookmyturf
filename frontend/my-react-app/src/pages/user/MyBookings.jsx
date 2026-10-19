@@ -198,6 +198,9 @@ export default function MyBookings() {
                           <p>{new Date(booking.date).toLocaleDateString()} · {booking.startTime} – {booking.endTime}</p>
                           <span>{booking.sport || 'Multi-sport'} · ₹{booking.amount}</span>
                           {booking.cancellationReason && <small>Reason: {booking.cancellationReason}</small>}
+                          {booking.status === 'cancelled' && booking.refundStatus === 'credited' && (
+                            <small className="bookingWalletRefund">{`₹${Number(booking.refundAmount || booking.amount).toLocaleString('en-IN')} refunded to wallet`} · <Link to="/wallet">View wallet</Link></small>
+                          )}
                         </div>
                         <div className="bookingCardActions">
                           <Link className="primaryAction small" to={`/bookings/${booking._id}`}>View details</Link>

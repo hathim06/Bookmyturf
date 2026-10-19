@@ -14,8 +14,6 @@ export const emptyTurfForm = {
   openingTime: "06:00",
   closingTime: "18:00",
   rules: "",
-  offerPrice: "",
-  offerTitle: "",
 };
 
 export const defaultTurfSlots = () => [

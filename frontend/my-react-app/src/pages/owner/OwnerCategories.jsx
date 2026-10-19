@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import DashboardShell from "../../components/DashboardShell";
 import { confirmAction, showSuccess } from "../../utils/alert";
 import { ownerTurfService } from "../../services/ownerTurfService";
+import { useOwnerSubscription } from "../../contexts/ownerSubscriptionContext";
 
 const DEFAULT_CATEGORIES = [
   "Football",
@@ -13,6 +14,7 @@ const DEFAULT_CATEGORIES = [
 ];
 
 export default function OwnerCategories() {
+  const { requireSubscription } = useOwnerSubscription();
   const [categories, setCategories] = useState([]);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -36,6 +38,7 @@ export default function OwnerCategories() {
 
   async function addCategory(event) {
     event.preventDefault();
+    if (!requireSubscription()) return;
     setError("");
     const categoryNames = [
       ...new Set(

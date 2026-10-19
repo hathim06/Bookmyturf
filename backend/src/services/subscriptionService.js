@@ -1,6 +1,8 @@
 import subscriptionModel from "../models/subscription.js";
 import userModel from "../models/user.js";
 
+export const SUBSCRIPTION_GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000;
+
 export const PLANS = {
   monthly: {
     name: "Monthly Plan",
@@ -22,6 +24,46 @@ export const getOwnerSubscription = async (ownerId) => {
     .findOne({ owner: ownerId, status: "active", endDate: { $gt: now } })
     .sort({ createdAt: -1 });
   return subscription;
+};
+
+// Owners can continue creating during the three-day period after expiry.
+// A cancelled subscription does not receive this expiry grace period.
+export const getOwnerSubscriptionAccess = async (ownerId) => {
+  const now = new Date();
+  const subscription = await subscriptionModel
+    .findOne({ owner: ownerId })
+    .sort({ createdAt: -1 });
+
+  if (!subscription) {
+    return { subscription: null, state: "required", canCreate: false };
+  }
+
+  const endDate = new Date(subscription.endDate);
+  const graceEndsAt = new Date(endDate.getTime() + SUBSCRIPTION_GRACE_PERIOD_MS);
+  const isPaidPlan = ["active", "expired"].includes(subscription.status);
+  const canCreate = isPaidPlan && now < graceEndsAt;
+  let state = "expired";
+  let daysUntilExpiry = 0;
+  let graceDaysRemaining = 0;
+
+  if (subscription.status === "cancelled") {
+    state = "cancelled";
+  } else if (now < endDate) {
+    daysUntilExpiry = Math.ceil((endDate.getTime() - now.getTime()) / 86400000);
+    state = daysUntilExpiry <= 3 ? "expiring" : "active";
+  } else if (canCreate) {
+    graceDaysRemaining = Math.ceil((graceEndsAt.getTime() - now.getTime()) / 86400000);
+    state = "grace";
+  }
+
+  return {
+    subscription,
+    state,
+    canCreate,
+    daysUntilExpiry,
+    graceDaysRemaining,
+    graceEndsAt,
+  };
 };
 
 export const getOwnerSubscriptionHistory = async (ownerId) => {

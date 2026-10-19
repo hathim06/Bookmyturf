@@ -26,6 +26,8 @@ const bookingSchema = new mongoose.Schema({
   razorpayPaymentId: { type: String, trim: true, default: "" },
   paymentRetryUntil: { type: Date },
   paymentHoldUntil: { type: Date },
+  refundStatus: { type: String, enum: ["none", "credited"], default: "none" },
+  refundAmount: { type: Number, default: 0, min: 0 },
 }, { timestamps: true });
 
 export default mongoose.model("booking", bookingSchema);

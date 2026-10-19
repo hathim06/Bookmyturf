@@ -6,6 +6,7 @@ import transporter from "../config/email.js";
 import { createNotification } from "./notificationService.js";
 import offerModel from "../models/offer.js";
 import { isOfferValidOnDate } from "../../utils/offerDates.js";
+import { creditBookingRefund } from "./walletService.js";
 
 const PAYMENT_RETRY_WINDOW_MS = 4 * 60 * 60 * 1000;
 const PAYMENT_HOLD_MS = 10 * 60 * 1000;
@@ -89,8 +90,7 @@ export const createBooking = async (
   );
   const basePrice = selectedSlot?.price ?? turf.pricePerHour;
   const offer = await getOfferForDate(turf._id, date, basePrice);
-  const hourlyPrice = offer ? priceWithOffer(basePrice, offer) :
-    ((turf.offerPrice !== undefined && turf.offerPrice !== null) ? turf.offerPrice : basePrice);
+  const hourlyPrice = offer ? priceWithOffer(basePrice, offer) : basePrice;
   const amount = hourlyPrice * ((end - start) / 60);
   const owner = await userModel.findById(turf.owner).select("name phone").lean();
   const paymentStatus = (paymentMethod === "razorpay" && status === "confirmed") ? "paid" : (status === "confirmed" ? "paid" : "pending");
@@ -211,10 +211,8 @@ export const getAvailableSlots = async (turfId, date) => {
     const isBooked = booked.some((booking) => booking.startTime < slot.endTime && booking.endTime > slot.startTime);
     const originalPrice = slot.price ?? turf.pricePerHour;
     const offer = await getOfferForDate(turf._id, date, originalPrice);
-    const price = offer
-      ? priceWithOffer(originalPrice, offer)
-      : ((turf.offerPrice !== undefined && turf.offerPrice !== null) ? turf.offerPrice : originalPrice);
-    return { ...slot, price, originalPrice, offerTitle: offer?.title || turf.offerTitle || "", available: bookingDate >= todayStart && slotStart > now && !isBooked };
+    const price = offer ? priceWithOffer(originalPrice, offer) : originalPrice;
+    return { ...slot, price, originalPrice, offerTitle: offer?.title || "", available: bookingDate >= todayStart && slotStart > now && !isBooked };
   }));
   return { slots };
 };
@@ -242,6 +240,11 @@ export const getUserBookings = async (userId) => {
         : ownerId
           ? await userModel.findById(ownerId).select("name phone").lean()
           : populatedOwner;
+    const [bookingHours, bookingMinutes] = booking.startTime.split(":").map(Number);
+    const bookingStartAt = new Date(booking.date);
+    bookingStartAt.setHours(bookingHours, bookingMinutes, 0, 0);
+    const canCancel = booking.status === "confirmed" &&
+      bookingStartAt.getTime() - Date.now() >= 4 * 60 * 60 * 1000;
     let canRetryPayment = false;
     let paymentRetryUntil = booking.paymentRetryUntil || null;
     if (booking.status === "pending" && booking.paymentMethod === "razorpay") {
@@ -268,6 +271,7 @@ export const getUserBookings = async (userId) => {
     }
     return {
       ...booking,
+      canCancel,
       canRetryPayment,
       paymentRetryUntil,
       ownerName: booking.ownerName || owner?.name || "",
@@ -316,22 +320,42 @@ export const prepareBookingPaymentRetry = async (bookingId, userId) => {
 };
 export const cancelUserBooking = async (userId, id, reason) => {
   if (!mongoose.isValidObjectId(id)) throw new Error("Invalid booking.");
-  if (!reason?.trim()) throw new Error("Choose a cancellation reason.");
-  const booking = await bookingModel.findOne({
-    _id: id,
-    user: userId,
-    status: { $nin: ["cancelled", "completed"] },
-  });
+  let booking = await bookingModel.findOne({ _id: id, user: userId });
   if (!booking) throw new Error("Booking not found or cannot be cancelled.");
-  const startAt = new Date(booking.date);
-  const [hours, minutesValue] = booking.startTime.split(":").map(Number);
-  startAt.setHours(hours, minutesValue, 0, 0);
-  if (startAt.getTime() - Date.now() < 4 * 60 * 60 * 1000)
-    throw new Error(
-      "Bookings can only be cancelled at least 4 hours before the start time.",
+
+  if (booking.status !== "cancelled") {
+    if (!reason?.trim()) throw new Error("Choose a cancellation reason.");
+    if (!["confirmed", "pending"].includes(booking.status))
+      throw new Error("Booking not found or cannot be cancelled.");
+
+    const startAt = new Date(booking.date);
+    const [hours, minutesValue] = booking.startTime.split(":").map(Number);
+    startAt.setHours(hours, minutesValue, 0, 0);
+    if (startAt.getTime() - Date.now() < 4 * 60 * 60 * 1000)
+      throw new Error(
+        "Bookings can only be cancelled at least 4 hours before the start time.",
+      );
+
+    booking = await bookingModel.findOneAndUpdate(
+      { _id: id, user: userId, status: booking.status },
+      { status: "cancelled", cancellationReason: reason.trim() },
+      { new: true },
     );
-  booking.status = "cancelled";
-  booking.cancellationReason = reason.trim();
-  await booking.save();
+    if (!booking) throw new Error("Booking changed while being cancelled. Please retry.");
+  }
+
+  // Only captured Razorpay payments are refundable; COD bookings were not paid online.
+  if (
+    booking.paymentMethod === "razorpay" &&
+    booking.paymentStatus === "paid" &&
+    booking.amount > 0 &&
+    booking.refundStatus !== "credited"
+  ) {
+    await creditBookingRefund(userId, booking);
+    booking.refundStatus = "credited";
+    booking.refundAmount = booking.amount;
+    await booking.save();
+  }
+
   return booking;
 };

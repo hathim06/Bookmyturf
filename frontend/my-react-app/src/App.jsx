@@ -6,6 +6,7 @@ import TurfDetails from "./pages/user/TurfDetails";
 import Checkout from "./pages/user/Checkout";
 import MyBookings from "./pages/user/MyBookings";
 import BookingDetails from "./pages/user/BookingDetails";
+import Wallet from "./pages/user/Wallet";
 import Favorites from "./pages/user/Favorites";
 import PaymentResult from "./pages/user/PaymentResult";
 import Login from "./pages/user/Login";
@@ -67,6 +68,14 @@ export default function App() {
               element={
                 <ProtectedRoute role="user">
                   <BookingDetails />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/wallet"
+              element={
+                <ProtectedRoute role="user">
+                  <Wallet />
                 </ProtectedRoute>
               }
             />

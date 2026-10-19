@@ -255,6 +255,32 @@ export default function Profile({ role = "user" }) {
     }
   }
 
+  async function addPassword(event) {
+    event.preventDefault();
+    const passwordError = validatePassword(passwordForm.newPassword);
+    if (passwordError) return setError(passwordError);
+    if (passwordForm.newPassword !== passwordForm.confirmPassword)
+      return setError("Passwords do not match.");
+
+    setSaving(true);
+    setError("");
+    try {
+      const data = await userService.setPassword({ password: passwordForm.newPassword });
+      const user = { ...form, ...data.user };
+      setForm(user);
+      setSavedProfile(user);
+      updateAuthUser(data.user);
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPanel("");
+      setSuccess("Password added. You can now sign in with Google or email and password.");
+      showSuccess("Password added", "You can now use either Google or email and password to sign in.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const togglePanel = (next) => {
     setPanel(panel === next ? "" : next);
     setError("");
@@ -488,11 +514,12 @@ export default function Profile({ role = "user" }) {
             <section className="securityCard">
               <div>
                 <h2>Login & security</h2>
-                <p>{form.googleId ? "This account uses Google sign-in." : "Update your email address or password."}</p>
+                <p>{form.googleId && !form.hasPassword ? "Google sign-in is enabled. Add a password to use either sign-in method." : "Update your email address or password."}</p>
               </div>
               <div className="securityActions">
                 {!form.googleId && <button type="button" onClick={() => togglePanel("email")}>Change email</button>}
-                {!form.googleId && <button type="button" onClick={() => togglePanel("password")}>Change password</button>}
+                {form.googleId && !form.hasPassword && <button type="button" onClick={() => togglePanel("create-password")}>Add password</button>}
+                {form.hasPassword && <button type="button" onClick={() => togglePanel("password")}>Change password</button>}
               </div>
               {panel === "email" && (
                 <form
@@ -596,6 +623,29 @@ export default function Profile({ role = "user" }) {
                   </label>
                   <button className="authSubmit" disabled={saving}>
                     {saving ? "Updating..." : "Update password"}
+                  </button>
+                </form>
+              )}
+              {panel === "create-password" && (
+                <form className="securityForm" onSubmit={addPassword}>
+                  <h3>Add a password</h3>
+                  {error && <p className="authError">{error}</p>}
+                  <label>
+                    Password
+                    <PasswordInput
+                      value={passwordForm.newPassword}
+                      onChange={(event) => setPasswordForm({ ...passwordForm, newPassword: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Confirm password
+                    <PasswordInput
+                      value={passwordForm.confirmPassword}
+                      onChange={(event) => setPasswordForm({ ...passwordForm, confirmPassword: event.target.value })}
+                    />
+                  </label>
+                  <button className="authSubmit" disabled={saving}>
+                    {saving ? "Adding..." : "Add password"}
                   </button>
                 </form>
               )}

@@ -3,11 +3,14 @@ import { Link, useParams } from "react-router-dom";
 import { Page } from "../../components/Layout";
 import { userService } from "../../services/userService";
 import { getImageUrl } from "../../utils/imageUrl";
+import { requestCancellationReason, showSuccess } from "../../utils/alert";
 
 export default function BookingDetails() {
   const { id } = useParams();
   const [booking, setBooking] = useState(null);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [cancelling, setCancelling] = useState(false);
   const [showOwnerContact, setShowOwnerContact] = useState(false);
   useEffect(() => {
     userService
@@ -46,6 +49,28 @@ export default function BookingDetails() {
   const hasOwnerContact = Boolean(
     booking.ownerName || booking.ownerPhone || owner?.name || owner?.phone,
   );
+  const canCancel = booking.canCancel === true;
+
+  const cancelBooking = async () => {
+    const reason = await requestCancellationReason();
+    if (!reason) return;
+    setCancelling(true);
+    setActionError("");
+    try {
+      const result = await userService.cancelBooking(booking._id, reason);
+      setBooking(result.booking);
+      if (result.booking.refundStatus === "credited") {
+        await showSuccess("Booking cancelled", `₹${Number(result.booking.refundAmount).toLocaleString("en-IN")} refund added to your wallet.`);
+      } else {
+        await showSuccess("Booking cancelled", "Your booking has been cancelled.");
+      }
+    } catch (requestError) {
+      setActionError(requestError.message || "Unable to cancel booking.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   return (
     <Page>
       <main className="userWorkspace bookingDetailsPage">
@@ -57,8 +82,18 @@ export default function BookingDetails() {
             <p className="pageKicker">MY BOOKINGS / DETAILS</p>
             <h1>Booking Information</h1>
           </div>
-          <span className="statusPill confirmed">{booking.status}</span>
+          <span className={`statusPill ${booking.status}`}>{booking.status}</span>
         </div>
+        {actionError && <p className="authError" role="alert">{actionError}</p>}
+        {booking.status === "cancelled" && booking.refundStatus === "credited" && (
+          <div className="bookingRefundNotice" role="status">
+            <div>
+              <strong>Refund credited to your wallet</strong>
+              <span>{`₹${Number(booking.refundAmount || booking.amount).toLocaleString("en-IN")} is available in your wallet.`}</span>
+            </div>
+            <Link to="/wallet">View wallet</Link>
+          </div>
+        )}
         <div className="bookingDetailsGrid">
           <section>
             <article className="bookingDetailHero">
@@ -142,6 +177,11 @@ export default function BookingDetails() {
             <Link className="outlineAction" to="/turfs">
               Book another turf
             </Link>
+            {canCancel && (
+              <button className="cancelBookingDetailButton" type="button" onClick={cancelBooking} disabled={cancelling}>
+                {cancelling ? "Cancelling…" : "Cancel booking"}
+              </button>
+            )}
           </aside>
         </div>
       </main>
